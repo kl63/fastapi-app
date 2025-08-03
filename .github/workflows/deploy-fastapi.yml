@@ -87,8 +87,17 @@ jobs:
             echo "" >> "$TARGET_DIR/.env"
             echo "# Database configuration - Using production database settings" >> "$TARGET_DIR/.env"
             # URL encode any special characters in the password using Python
-            ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
-            echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}" >> "$TARGET_DIR/.env"
+            echo "Setting up database connection..."
+            
+            # Use Python to encode the password from secrets
+            if [ -n "${{ secrets.POSTGRES_PASSWORD }}" ]; then
+              ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
+              echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}" >> "$TARGET_DIR/.env"
+              echo "Database URL created using GitHub secrets"
+            else
+              echo "ERROR: Required GitHub secrets not set. Please add POSTGRES_USER and POSTGRES_PASSWORD secrets."
+              exit 1
+            fi
 
             echo "Setting proper Python path..."
             export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
