@@ -1,0 +1,127 @@
+name: Deploy FastAPI App
+
+on:
+  push:
+    branches:
+      - main # Change if deploying a different branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Check Python version
+        run: python --version
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Deploy to DigitalOcean
+        env:
+          HOST: 159.89.245.206 # Update with your server IP
+          USERNAME: root
+          TARGET_DIR: /var/www/fastapi-app
+          APP_NAME: fastapi-app
+          PORT: 8000
+
+        run: |
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+            set -e
+            echo "Navigating to project directory..."
+            cd $TARGET_DIR
+
+            echo "Fetching and resetting to latest GitHub commit..."
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Creating/updating virtual environment..."
+            if [ ! -d "venv" ]; then
+              echo "Creating new virtual environment..."
+              python3 -m venv venv
+            fi
+            
+            echo "Activating virtual environment..."
+            source venv/bin/activate
+            
+            echo "Installing dependencies..."
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            echo "Creating deployment .env file..."
+            cat > $TARGET_DIR/.env << 'ENV'
+# Application settings
+PROJECT_NAME=FastAPI Boilerplate
+VERSION=0.1.0
+DESCRIPTION=FastAPI Boilerplate with SQLAlchemy, JWT Auth, and Alembic
+
+# API settings
+API_V1_STR=
+
+# Security
+SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=10080
+
+# CORS origins
+BACKEND_CORS_ORIGINS=["https://${{ secrets.DOMAIN }}","http://${{ secrets.DOMAIN }}","https://www.${{ secrets.DOMAIN }}","http://localhost:3000"]
+
+# Database configuration
+DATABASE_URL=postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@localhost:5432/${{ secrets.DB_NAME }}
+ENV
+
+            echo "Setting proper Python path..."
+            export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
+            
+            echo "Ensuring database tables exist..."
+            python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine)"
+            
+            echo "Initializing database with initial data..."
+            python -m app.utils.init_db
+            
+            # Create alembic table to prevent migration errors
+            python -c "import sqlalchemy as sa; from app.db.session import engine; conn=engine.connect(); conn.execute(sa.text('CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))'));"
+            
+            echo "Running any pending migrations..."
+            alembic upgrade head
+
+            echo "Checking if PM2 is installed..."
+            if ! command -v pm2 &> /dev/null
+            then
+              echo "PM2 not found, installing..."
+              npm install -g pm2
+            else
+              echo "PM2 is already installed"
+            fi
+
+            echo "Creating PM2 startup script..."
+            cat > $TARGET_DIR/start.sh << 'STARTUP'
+#!/bin/bash
+source "$TARGET_DIR/venv/bin/activate"
+cd "$TARGET_DIR"
+exec uvicorn main:app --host 0.0.0.0 --port $PORT
+STARTUP
+            
+            chmod +x $TARGET_DIR/start.sh
+            
+            echo "Checking if PM2 process exists..."
+            if pm2 list | grep -q $APP_NAME; then
+              echo "Restarting application: $APP_NAME"
+              pm2 restart $APP_NAME
+            else
+              echo "Starting application: $APP_NAME"
+              pm2 start $TARGET_DIR/start.sh --name $APP_NAME
+            fi
+
+            echo "Saving PM2 state..."
+            pm2 save
+          EOF
