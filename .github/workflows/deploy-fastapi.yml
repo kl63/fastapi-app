@@ -29,7 +29,7 @@ jobs:
       - name: Deploy to DigitalOcean
         env:
           HOST: 159.89.245.206 # Update with your server IP
-          USERNAME: root
+          USERNAME: kevinlin192003  # Or another user with sudo privileges
           TARGET_DIR: /var/www/fastapi-app
           APP_NAME: fastapi-app
           PORT: 8000
@@ -37,6 +37,8 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
             set -e
+            echo "Creating project directory if needed..."
+            mkdir -p $TARGET_DIR
             echo "Navigating to project directory..."
             cd $TARGET_DIR
 
@@ -97,10 +99,13 @@ jobs:
             if ! command -v pm2 &> /dev/null
             then
               echo "PM2 not found, installing..."
-              npm install -g pm2
+              sudo npm install -g pm2
             else
               echo "PM2 is already installed"
             fi
+            
+            # Ensure proper permissions on directories
+            chmod 755 $TARGET_DIR
 
             echo "Creating PM2 startup script..."
             # Use separate echo statements for better YAML compatibility
