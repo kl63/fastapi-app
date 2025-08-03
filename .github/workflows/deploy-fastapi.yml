@@ -1,3 +1,11 @@
+# Deploy FastAPI App with PostgreSQL
+#
+# Required GitHub Secrets:
+# - SSH_PRIVATE_KEY: SSH private key for server access
+# - POSTGRES_USER: PostgreSQL username (e.g., kevinlin192003)
+# - POSTGRES_PASSWORD: PostgreSQL password 
+# - POSTGRES_DB: PostgreSQL database name (default: fastapi_app if not specified)
+#
 name: Deploy FastAPI App
 
 on:
@@ -78,7 +86,9 @@ jobs:
             echo 'BACKEND_CORS_ORIGINS=["https://myapp.com","http://localhost:3000"]' >> "$TARGET_DIR/.env"
             echo "" >> "$TARGET_DIR/.env"
             echo "# Database configuration - Using production database settings" >> "$TARGET_DIR/.env"
-            echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fastapi_app" >> "$TARGET_DIR/.env"
+            # URL encode any special characters in the password using Python
+            ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
+            echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}" >> "$TARGET_DIR/.env"
 
             echo "Setting proper Python path..."
             export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
@@ -91,6 +101,8 @@ jobs:
             
             # Create alembic table to prevent migration errors
             python -c "import sqlalchemy as sa; from app.db.session import engine; conn=engine.connect(); conn.execute(sa.text('CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))'));"
+            
+            echo "Using existing PostgreSQL configuration with user 'kevinlin192003'"
             
             echo "Running any pending migrations..."
             alembic upgrade head
