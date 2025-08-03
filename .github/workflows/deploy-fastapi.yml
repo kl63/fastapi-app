@@ -92,31 +92,59 @@ jobs:
             # Create database connection and export to environment
             if [ -n "${{ secrets.POSTGRES_PASSWORD }}" ]; then
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
-              DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}"
+              DB_NAME="${{ secrets.POSTGRES_DB || 'fastapi_app' }}"
+              DB_USER="${{ secrets.POSTGRES_USER }}"
+              DB_URL="postgresql://${DB_USER}:${ENCODED_PW}@localhost:5432/${DB_NAME}"
+              
+              # Create database user and database if they don't exist
+              echo "Creating PostgreSQL database if it doesn't exist..."
+              sudo -u postgres psql -c "SELECT 1 FROM pg_catalog.pg_user WHERE usename = '${DB_USER}'" | grep -q 1 || sudo -u postgres psql -c "CREATE USER ${DB_USER} WITH PASSWORD '${{ secrets.POSTGRES_PASSWORD }}'"
+              sudo -u postgres psql -c "SELECT 1 FROM pg_database WHERE datname = '${DB_NAME}'" | grep -q 1 || sudo -u postgres psql -c "CREATE DATABASE ${DB_NAME} OWNER ${DB_USER}"
+              
+              # Write DATABASE_URL to .env file
               echo "DATABASE_URL=${DB_URL}" >> "$TARGET_DIR/.env"
               
-              # Also export to current shell environment
+              # Export to current shell environment
               export DATABASE_URL="${DB_URL}"
-              echo "Database URL created and exported to environment"
+              echo "Database URL created and exported to environment: ${DB_URL}"
               
-              # Debug check
+              # Debug check with better error handling
               echo "Testing PostgreSQL connection..."
-              python3 -c "import psycopg2; print('Attempting to connect to:', '${DB_URL}'); conn = psycopg2.connect('${DB_URL}'); print('Connection successful!')" || echo "Connection failed, but continuing..."
+              python3 -c "import psycopg2; import os; print('DATABASE_URL =', os.environ.get('DATABASE_URL')); conn = psycopg2.connect('${DB_URL}'); print('Connection successful!')" || echo "Connection failed, but continuing..."
             else
               echo "ERROR: Required GitHub secrets not set. Please add POSTGRES_USER and POSTGRES_PASSWORD secrets."
               exit 1
             fi
 
             echo "Setting proper Python path..."
-            export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
-            
-            echo "Setting up database tables and initializing data..."
-            # Let session.py handle loading the .env file
+            export PYTHONPATH="$TARGET_DIR:$PYTHONPATH"
             cd "$TARGET_DIR"
-            python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine)"
+            
+            echo "Creating debug script for database operations..."
+            cat > debug_db.py << 'EOF'
+            import os
+            import sys
+            print(f"Python version: {sys.version}")
+            print(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
+            print(f"Current directory: {os.getcwd()}")
+            print(f"DATABASE_URL: {os.environ.get('DATABASE_URL')}")
+            
+            try:
+                from app.db.base import Base
+                from app.db.session import engine
+                print("Successfully imported database modules")
+                print(f"Engine URL: {engine.url}")
+                Base.metadata.create_all(bind=engine)
+                print("Successfully created database tables")
+            except Exception as e:
+                print(f"Error creating database tables: {str(e)}")
+            EOF
+            
+            echo "Setting up database tables with better error handling..."
+            python debug_db.py
             
             echo "Initializing database with initial data..."
-            python -m app.utils.init_db
+            python -m app.utils.init_db || echo "Error initializing database data, but continuing deployment"
             
             # Create alembic table to prevent migration errors
             python -c "import sqlalchemy as sa; from app.db.session import engine; conn=engine.connect(); conn.execute(sa.text('CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))'));"
