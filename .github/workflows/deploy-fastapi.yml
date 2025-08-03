@@ -58,26 +58,25 @@ jobs:
             pip install -r requirements.txt
 
             echo "Creating production .env file..."
-            cat > "$TARGET_DIR/.env" << EOF
-# Application settings
-PROJECT_NAME=FastAPI Boilerplate
-VERSION=0.1.0
-DESCRIPTION=FastAPI Boilerplate with SQLAlchemy, JWT Auth, and Alembic
-
-# API settings
-API_V1_STR=
-
-# Security - Using a long secure random string
-SECRET_KEY=A38Lhs17o53sUebdKS1UHZn9U4edKsTHYE7QHrE5JSX4DuC6g72plG9q2TuMspL8
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
-
-# CORS origins - Default production settings
-BACKEND_CORS_ORIGINS=["https://myapp.com","http://localhost:3000"]
-
-# Database configuration - Using production database settings
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fastapi_app
-EOF
+            # Use separate echo statements for better YAML compatibility
+            echo "# Application settings" > "$TARGET_DIR/.env"
+            echo "PROJECT_NAME=FastAPI Boilerplate" >> "$TARGET_DIR/.env"
+            echo "VERSION=0.1.0" >> "$TARGET_DIR/.env"
+            echo "DESCRIPTION=FastAPI Boilerplate with SQLAlchemy, JWT Auth, and Alembic" >> "$TARGET_DIR/.env"
+            echo "" >> "$TARGET_DIR/.env"
+            echo "# API settings" >> "$TARGET_DIR/.env"
+            echo "API_V1_STR=" >> "$TARGET_DIR/.env"
+            echo "" >> "$TARGET_DIR/.env"
+            echo "# Security - Using a long secure random string" >> "$TARGET_DIR/.env"
+            echo "SECRET_KEY=A38Lhs17o53sUebdKS1UHZn9U4edKsTHYE7QHrE5JSX4DuC6g72plG9q2TuMspL8" >> "$TARGET_DIR/.env"
+            echo "ALGORITHM=HS256" >> "$TARGET_DIR/.env"
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=10080" >> "$TARGET_DIR/.env"
+            echo "" >> "$TARGET_DIR/.env"
+            echo "# CORS origins - Default production settings" >> "$TARGET_DIR/.env"
+            echo 'BACKEND_CORS_ORIGINS=["https://myapp.com","http://localhost:3000"]' >> "$TARGET_DIR/.env"
+            echo "" >> "$TARGET_DIR/.env"
+            echo "# Database configuration - Using production database settings" >> "$TARGET_DIR/.env"
+            echo "DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fastapi_app" >> "$TARGET_DIR/.env"
 
             echo "Setting proper Python path..."
             export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
@@ -104,12 +103,11 @@ EOF
             fi
 
             echo "Creating PM2 startup script..."
-            cat > "$TARGET_DIR/start.sh" << EOF
-#!/bin/bash
-source "$TARGET_DIR/venv/bin/activate"
-cd "$TARGET_DIR"
-exec uvicorn main:app --host 0.0.0.0 --port $PORT
-EOF
+            # Use separate echo statements for better YAML compatibility
+            echo '#!/bin/bash' > "$TARGET_DIR/start.sh"
+            echo "source \"$TARGET_DIR/venv/bin/activate\"" >> "$TARGET_DIR/start.sh"
+            echo "cd \"$TARGET_DIR\"" >> "$TARGET_DIR/start.sh"
+            echo "exec uvicorn main:app --host 0.0.0.0 --port $PORT" >> "$TARGET_DIR/start.sh"
             
             chmod +x $TARGET_DIR/start.sh
             
