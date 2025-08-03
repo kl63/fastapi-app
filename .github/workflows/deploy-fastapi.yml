@@ -89,11 +89,19 @@ jobs:
             # URL encode any special characters in the password using Python
             echo "Setting up database connection..."
             
-            # Use Python to encode the password from secrets
+            # Create database connection and export to environment
             if [ -n "${{ secrets.POSTGRES_PASSWORD }}" ]; then
               ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
-              echo "DATABASE_URL=postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}" >> "$TARGET_DIR/.env"
-              echo "Database URL created using GitHub secrets"
+              DB_URL="postgresql://${{ secrets.POSTGRES_USER }}:${ENCODED_PW}@localhost:5432/${{ secrets.POSTGRES_DB || 'fastapi_app' }}"
+              echo "DATABASE_URL=${DB_URL}" >> "$TARGET_DIR/.env"
+              
+              # Also export to current shell environment
+              export DATABASE_URL="${DB_URL}"
+              echo "Database URL created and exported to environment"
+              
+              # Debug check
+              echo "Testing PostgreSQL connection..."
+              python3 -c "import psycopg2; print('Attempting to connect to:', '${DB_URL}'); conn = psycopg2.connect('${DB_URL}'); print('Connection successful!')" || echo "Connection failed, but continuing..."
             else
               echo "ERROR: Required GitHub secrets not set. Please add POSTGRES_USER and POSTGRES_PASSWORD secrets."
               exit 1
@@ -102,7 +110,9 @@ jobs:
             echo "Setting proper Python path..."
             export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
             
-            echo "Ensuring database tables exist..."
+            echo "Setting up database tables and initializing data..."
+            # Let session.py handle loading the .env file
+            cd "$TARGET_DIR"
             python -c "from app.db.base import Base; from app.db.session import engine; Base.metadata.create_all(bind=engine)"
             
             echo "Initializing database with initial data..."

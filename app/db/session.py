@@ -1,8 +1,14 @@
 import re
+import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from dotenv import load_dotenv
 
+# Load environment variables from .env file
+load_dotenv()
+
+# Import settings after loading environment variables
 from app.core.config import settings
 
 # Determine if we're using an async URL
