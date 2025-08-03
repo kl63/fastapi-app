@@ -3,6 +3,7 @@ from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import time
+from sqlalchemy import text
 
 from app.api.api import api_router
 from app.core.config import settings
@@ -46,7 +47,7 @@ async def health_check():
     try:
         # Test database connection
         db = SessionLocal()
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_response_time = round((time.time() - start_time) * 1000, 2)  # in ms
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
