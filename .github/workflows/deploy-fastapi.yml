@@ -57,8 +57,8 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Creating deployment .env file..."
-            cat > $TARGET_DIR/.env << 'ENV'
+            echo "Creating production .env file..."
+            cat > "$TARGET_DIR/.env" << EOF
 # Application settings
 PROJECT_NAME=FastAPI Boilerplate
 VERSION=0.1.0
@@ -67,17 +67,17 @@ DESCRIPTION=FastAPI Boilerplate with SQLAlchemy, JWT Auth, and Alembic
 # API settings
 API_V1_STR=
 
-# Security
-SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+# Security - Using a long secure random string
+SECRET_KEY=A38Lhs17o53sUebdKS1UHZn9U4edKsTHYE7QHrE5JSX4DuC6g72plG9q2TuMspL8
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=10080
 
-# CORS origins
-BACKEND_CORS_ORIGINS=["https://${{ secrets.DOMAIN }}","http://${{ secrets.DOMAIN }}","https://www.${{ secrets.DOMAIN }}","http://localhost:3000"]
+# CORS origins - Default production settings
+BACKEND_CORS_ORIGINS=["https://myapp.com","http://localhost:3000"]
 
-# Database configuration
-DATABASE_URL=postgresql://${{ secrets.DB_USER }}:${{ secrets.DB_PASSWORD }}@localhost:5432/${{ secrets.DB_NAME }}
-ENV
+# Database configuration - Using production database settings
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/fastapi_app
+EOF
 
             echo "Setting proper Python path..."
             export PYTHONPATH=$TARGET_DIR:$PYTHONPATH
@@ -104,12 +104,12 @@ ENV
             fi
 
             echo "Creating PM2 startup script..."
-            cat > $TARGET_DIR/start.sh << 'STARTUP'
+            cat > "$TARGET_DIR/start.sh" << EOF
 #!/bin/bash
 source "$TARGET_DIR/venv/bin/activate"
 cd "$TARGET_DIR"
 exec uvicorn main:app --host 0.0.0.0 --port $PORT
-STARTUP
+EOF
             
             chmod +x $TARGET_DIR/start.sh
             
