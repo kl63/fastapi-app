@@ -45,8 +45,10 @@ async def health_check():
     db_response_time = 0
     
     try:
-        # Test database connection
+        # Test database connection with proper error handling
         db = SessionLocal()
+        
+        # Use a simple health check query
         db.execute(text("SELECT 1"))
         db_response_time = round((time.time() - start_time) * 1000, 2)  # in ms
     except Exception as e:
