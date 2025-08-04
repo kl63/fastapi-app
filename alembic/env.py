@@ -27,6 +27,10 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Override sqlalchemy.url from alembic.ini with settings from app config
+# Disable interpolation to avoid issues with special characters in DB URL
+config.set_section_option = lambda section, option, value: config.file_config.set(
+    section, option, value, raw=True
+)
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Add your model's MetaData object here for 'autogenerate' support
