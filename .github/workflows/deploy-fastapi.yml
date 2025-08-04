@@ -1,7 +1,32 @@
+name: Deploy FastAPI App
+
+on:
+  push:
+    branches:
+      - main  # Deploy only when pushing to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
       - name: Deploy to DigitalOcean
         env:
           HOST: 159.89.245.206
-          USERNAME: kevinlin192003   # ✅ changed from root
+          USERNAME: kevinlin192003
           TARGET_DIR: /var/www/fastapi_app
           APP_NAME: fastapi_app
           PORT: 8000
@@ -15,10 +40,20 @@
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOSSH'
             set -e
-            echo "Navigating to project directory..."
+
+            echo "🚀 Starting deployment on server..."
+
+            # Create app directory if missing
+            mkdir -p $TARGET_DIR
             cd $TARGET_DIR
 
-            echo "Fetching and resetting to latest GitHub commit..."
+            # If repo not cloned yet, clone it
+            if [ ! -d ".git" ]; then
+              echo "Cloning repository for the first time..."
+              git clone https://github.com/${GITHUB_REPOSITORY}.git .
+            fi
+
+            echo "Fetching latest code..."
             git fetch origin
             git reset --hard origin/main
 
@@ -43,15 +78,12 @@
             if [ -d "alembic" ]; then
               alembic upgrade head
             else
-              echo "No Alembic folder found — skipping migrations."
+              echo "⚠️ No Alembic folder found — skipping migrations."
             fi
 
-            echo "Checking if PM2 is installed..."
+            echo "Ensuring PM2 is installed..."
             if ! command -v pm2 &> /dev/null; then
-              echo "PM2 not found, installing..."
               npm install -g pm2
-            else
-              echo "PM2 is already installed"
             fi
 
             echo "Starting or restarting FastAPI app with PM2..."
@@ -63,4 +95,5 @@
             fi
 
             pm2 save
+            echo "✅ Deployment complete!"
           EOSSH
