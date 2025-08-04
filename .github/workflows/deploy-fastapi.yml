@@ -1,28 +1,3 @@
-name: Deploy FastAPI App
-
-on:
-  push:
-    branches:
-      - main  # Deploy only when pushing to main
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.5.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Deploy to DigitalOcean
         env:
           HOST: 159.89.245.206
@@ -38,55 +13,55 @@ jobs:
           POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
 
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOSSH'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "
             set -e
 
-            echo "🚀 Starting deployment on server..."
+            echo '🚀 Starting deployment on server...'
 
             # Create app directory if missing
             mkdir -p $TARGET_DIR
             cd $TARGET_DIR
 
             # If repo not cloned yet, clone it
-            if [ ! -d ".git" ]; then
-              echo "Cloning repository for the first time..."
+            if [ ! -d '.git' ]; then
+              echo 'Cloning repository for the first time...'
               git clone https://github.com/${GITHUB_REPOSITORY}.git .
             fi
 
-            echo "Fetching latest code..."
+            echo 'Fetching latest code...'
             git fetch origin
             git reset --hard origin/main
 
-            echo "Setting up Python virtual environment..."
-            if [ ! -d "venv" ]; then
+            echo 'Setting up Python virtual environment...'
+            if [ ! -d 'venv' ]; then
               python3 -m venv venv
             fi
             source venv/bin/activate
 
-            echo "Installing dependencies..."
+            echo 'Installing dependencies...'
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Writing environment variables to .env file..."
-            echo "POSTGRES_USER=${POSTGRES_USER}" > .env
-            echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
-            echo "POSTGRES_DB=${POSTGRES_DB}" >> .env
-            echo "POSTGRES_HOST=${POSTGRES_HOST}" >> .env
-            echo "POSTGRES_PORT=${POSTGRES_PORT}" >> .env
+            echo 'Writing environment variables to .env file...'
+            echo 'POSTGRES_USER=$POSTGRES_USER' > .env
+            echo 'POSTGRES_PASSWORD=$POSTGRES_PASSWORD' >> .env
+            echo 'POSTGRES_DB=$POSTGRES_DB' >> .env
+            echo 'POSTGRES_HOST=$POSTGRES_HOST' >> .env
+            echo 'POSTGRES_PORT=$POSTGRES_PORT' >> .env
 
-            echo "Running database migrations..."
-            if [ -d "alembic" ]; then
+            echo 'Running database migrations...'
+            if [ -d 'alembic' ]; then
               alembic upgrade head
             else
-              echo "⚠️ No Alembic folder found — skipping migrations."
+              echo '⚠️ No Alembic folder found — skipping migrations.'
             fi
 
-            echo "Ensuring PM2 is installed..."
+            echo 'Ensuring PM2 is installed...'
             if ! command -v pm2 &> /dev/null; then
               npm install -g pm2
             fi
 
-            echo "Starting or restarting FastAPI app with PM2..."
+            echo 'Starting or restarting FastAPI app with PM2...'
             if pm2 list | grep -q $APP_NAME; then
               pm2 restart $APP_NAME
             else
@@ -95,5 +70,5 @@ jobs:
             fi
 
             pm2 save
-            echo "✅ Deployment complete!"
-          EOSSH
+            echo '✅ Deployment complete!'
+          "
