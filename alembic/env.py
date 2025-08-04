@@ -27,11 +27,20 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Override sqlalchemy.url from alembic.ini with settings from app config
-# Disable interpolation to avoid issues with special characters in DB URL
-config.set_section_option = lambda section, option, value: config.file_config.set(
-    section, option, value, raw=True
-)
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+# Use a more compatible approach to handle special characters
+try:
+    # Escape any % characters in the URL by doubling them
+    # This is how ConfigParser handles % to avoid interpolation issues
+    if settings.DATABASE_URL and '%' in settings.DATABASE_URL:
+        escaped_url = settings.DATABASE_URL.replace('%', '%%')
+    else:
+        escaped_url = settings.DATABASE_URL
+    
+    config.set_main_option("sqlalchemy.url", escaped_url)
+except Exception as e:
+    print(f"Error setting database URL: {e}")
+    # Fallback to direct modification if needed
+    config.file_config[config.config_ini_section]["sqlalchemy.url"] = settings.DATABASE_URL
 
 # Add your model's MetaData object here for 'autogenerate' support
 # from myapp import mymodel
