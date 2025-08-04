@@ -110,31 +110,9 @@ jobs:
               echo "Checking PostgreSQL service status..."
               systemctl status postgresql || echo "PostgreSQL service check failed but continuing..."
               
-              # Create a temporary direct access script to test connection
-              cat > test_db.py << ENDPY
-              import os
-              import sys
-              import psycopg2
-              
-              # Get the database URL from arguments
-              db_url = sys.argv[1] if len(sys.argv) > 1 else os.environ.get('DATABASE_URL')
-              print(f"Testing connection to: {db_url}")
-              
-              try:
-                  conn = psycopg2.connect(db_url)
-                  cursor = conn.cursor()
-                  cursor.execute("SELECT 1")
-                  print("Connection successful!")
-                  cursor.close()
-                  conn.close()
-              except Exception as e:
-                  print(f"Connection error: {str(e)}")
-                  # Don't fail - we'll let the app handle this
-              ENDPY
-              
-              # Run the database test script
+              # Use pre-made script for database testing
               echo "Testing database connection..."
-              python test_db.py "${DB_URL}" || echo "Database connection test failed, but continuing..."
+              python ${TARGET_DIR}/scripts/test_db.py "${DB_URL}" || echo "Database connection test failed, but continuing..."
               
               # Write DATABASE_URL to .env file
               echo "DATABASE_URL=${DB_URL}" >> "$TARGET_DIR/.env"
@@ -161,28 +139,8 @@ jobs:
             touch "${TARGET_DIR}/app/__init__.py"
             touch "${TARGET_DIR}/app/db/__init__.py"
             
-            echo "Creating debug script for database operations..."
-            cat > debug_db.py << ENDDBSCRIPT
-            import os
-            import sys
-            print(f"Python version: {sys.version}")
-            print(f"PYTHONPATH: {os.environ.get('PYTHONPATH')}")
-            print(f"Current directory: {os.getcwd()}")
-            print(f"DATABASE_URL: {os.environ.get('DATABASE_URL')}")
-            
-            try:
-                from app.db.base import Base
-                from app.db.session import engine
-                print("Successfully imported database modules")
-                print(f"Engine URL: {engine.url}")
-                Base.metadata.create_all(bind=engine)
-                print("Successfully created database tables")
-            except Exception as e:
-                print(f"Error creating database tables: {str(e)}")
-            ENDDBSCRIPT
-            
             echo "Setting up database tables with better error handling..."
-            python debug_db.py
+            python ${TARGET_DIR}/scripts/debug_db.py
             
             echo "Initializing database with initial data..."
             python -m app.utils.init_db || echo "Error initializing database data, but continuing deployment"
