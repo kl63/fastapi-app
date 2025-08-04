@@ -46,7 +46,12 @@ class Settings(BaseSettings):
         user = values.get("POSTGRES_USER")
         password = values.get("POSTGRES_PASSWORD")
         host = values.get("POSTGRES_HOST", "localhost")
-        port = values.get("POSTGRES_PORT", "5432")
+        port = values.get("POSTGRES_PORT")
+        
+        # Ensure port is not empty and is valid
+        if not port or port == "":
+            port = "5432"  # Default PostgreSQL port
+        
         db = values.get("POSTGRES_DB")
         
         if user and password and db:
