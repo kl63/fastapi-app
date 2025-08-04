@@ -58,18 +58,15 @@ jobs:
             DB_URL="postgresql://${POSTGRES_USER}:${ENCODED_PW}@127.0.0.1:5432/${POSTGRES_DB}"
 
             echo "Creating .env file..."
-            cat > .env << 'EOF'
-DATABASE_URL=$DB_URL
-SECRET_KEY=$(openssl rand -hex 32)
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-PROJECT_NAME=FastAPI API
-API_V1_STR=/api/v1
-VERSION=0.1.0
-BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
-EOF
-            # Apply variable substitution after creating the file
-            sed -i "s|\$DB_URL|${DB_URL}|g" .env
+            # Use multiple echo statements instead of heredoc
+            echo "DATABASE_URL=${DB_URL}" > .env
+            echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
+            echo "ALGORITHM=HS256" >> .env
+            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> .env
+            echo 'PROJECT_NAME=FastAPI API' >> .env
+            echo "API_V1_STR=/api/v1" >> .env
+            echo "VERSION=0.1.0" >> .env
+            echo 'BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]' >> .env
 
             chmod 600 .env
 
@@ -85,31 +82,26 @@ EOF
             fi
 
             echo "Creating start script..."
-            cat > start.sh << 'EOF'
-#!/bin/bash
-source venv/bin/activate
-set -a
-source .env
-set +a
-exec uvicorn main:app --host 0.0.0.0 --port PORT_PLACEHOLDER
-EOF
-            sed -i "s|PORT_PLACEHOLDER|${PORT}|g" start.sh
+            # Write start.sh line by line instead of using heredoc
+            echo '#!/bin/bash' > start.sh
+            echo 'source venv/bin/activate' >> start.sh
+            echo 'set -a' >> start.sh
+            echo 'source .env' >> start.sh
+            echo 'set +a' >> start.sh
+            echo "exec uvicorn main:app --host 0.0.0.0 --port ${PORT}" >> start.sh
 
             chmod +x start.sh
 
             echo "Creating ecosystem config..."
-            cat > ecosystem.config.js << 'EOF'
-module.exports = {
-  apps: [{
-    name: "APP_NAME_PLACEHOLDER",
-    script: "TARGET_DIR_PLACEHOLDER/start.sh",
-    cwd: "TARGET_DIR_PLACEHOLDER",
-    interpreter: "/bin/bash"
-  }]
-}
-EOF
-            sed -i "s|APP_NAME_PLACEHOLDER|${APP_NAME}|g" ecosystem.config.js
-            sed -i "s|TARGET_DIR_PLACEHOLDER|${TARGET_DIR}|g" ecosystem.config.js
+            # Write ecosystem.config.js without using heredoc
+            echo 'module.exports = {' > ecosystem.config.js
+            echo '  apps: [{' >> ecosystem.config.js
+            echo "    name: \"${APP_NAME}\"," >> ecosystem.config.js
+            echo "    script: \"${TARGET_DIR}/start.sh\"," >> ecosystem.config.js
+            echo "    cwd: \"${TARGET_DIR}\"," >> ecosystem.config.js
+            echo '    interpreter: "/bin/bash"' >> ecosystem.config.js
+            echo '  }]' >> ecosystem.config.js
+            echo '}' >> ecosystem.config.js
 
             echo "Starting app with PM2..."
             if pm2 list | grep -q "$APP_NAME"; then
