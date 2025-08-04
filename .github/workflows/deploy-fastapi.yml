@@ -3,7 +3,7 @@ name: Deploy FastAPI App
 on:
   push:
     branches:
-      - main
+      - main  # Change if deploying a different branch
 
 jobs:
   deploy:
@@ -28,130 +28,72 @@ jobs:
 
       - name: Deploy to DigitalOcean
         env:
-          HOST: ${{ secrets.DEPLOY_HOST }}
-          USERNAME: ${{ secrets.DEPLOY_USERNAME }}
-          TARGET_DIR: /var/www/fastapi-app
-          APP_NAME: fastapi-app
+          HOST: 159.89.245.206
+          USERNAME: root
+          TARGET_DIR: /var/www/fastapi_app
+          APP_NAME: fastapi_app
           PORT: 8000
-          REPO_URL: https://github.com/kl63/fastapi-app.git
+
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'fastapi_app' }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
+          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
+
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'ENDSSH'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
             set -e
-            # Define application directory and name
-            TARGET_DIR="/var/www/fastapi-app"
-            APP_NAME="fastapi-app"
-            PORT="8000"
-            REPO_URL="https://github.com/kl63/fastapi-app.git"
+            echo "Navigating to project directory..."
+            cd $TARGET_DIR
 
-            echo "Deploying application..."
-            if [ -d "$TARGET_DIR/.git" ]; then
-              echo "Git repository exists, pulling latest changes..."
-              cd "$TARGET_DIR"
-              git fetch --all
-              git reset --hard origin/main
-            else
-              echo "Initial deployment - cloning repository..."
-              # Ensure directory is empty or create it
-              rm -rf "$TARGET_DIR"
-              mkdir -p "$TARGET_DIR"
-              git clone "$REPO_URL" "$TARGET_DIR"
+            echo "Fetching and resetting to latest GitHub commit..."
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "Setting up Python virtual environment..."
+            if [ ! -d "venv" ]; then
+              python3 -m venv venv
             fi
-            
-            # Change to project directory
-            cd "$TARGET_DIR"
-            echo "Repository setup complete"
-
-            # Set up Python environment and paths
-            echo "Setting proper Python path..."
-            export PYTHONPATH="$TARGET_DIR:$PYTHONPATH"
-            
-            # Create necessary __init__.py files
-            echo "Ensuring proper Python package structure..."
-            mkdir -p "${TARGET_DIR}/app/db"
-            touch "${TARGET_DIR}/app/__init__.py"
-            touch "${TARGET_DIR}/app/db/__init__.py"
-            
-            # Fix Alembic configuration if it exists
-            if [ -d "${TARGET_DIR}/alembic" ]; then
-              echo "Setting up Alembic directory structure..."
-              mkdir -p "${TARGET_DIR}/alembic/versions"
-              touch "${TARGET_DIR}/alembic/__init__.py"
-              touch "${TARGET_DIR}/alembic/versions/__init__.py"
-              
-              # Fix common alembic script path issues
-              if [ -f "${TARGET_DIR}/alembic/env.py" ]; then
-                echo "Patching alembic env.py to fix import issues..."
-                sed -i "s|from app import|import sys\nif '.' not in sys.path:\n    sys.path.insert(0, '.')\nfrom app import|" "${TARGET_DIR}/alembic/env.py" || echo "Failed to patch alembic/env.py but continuing..."
-              fi
-            fi
-
-            echo "Creating/updating virtual environment..."
-            [ ! -d "venv" ] && python3 -m venv venv
             source venv/bin/activate
 
             echo "Installing dependencies..."
             pip install --upgrade pip
-            pip install -r requirements.txt --break-system-packages
+            pip install -r requirements.txt
 
-            echo "Encoding DB password..."
-            ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${POSTGRES_PASSWORD}'))")
-            DB_URL="postgresql://${POSTGRES_USER}:${ENCODED_PW}@127.0.0.1:5432/${POSTGRES_DB}"
+            echo "Writing environment variables to .env file..."
+            cat > .env << EOL
+POSTGRES_USER=${POSTGRES_USER}
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+POSTGRES_DB=${POSTGRES_DB}
+POSTGRES_HOST=${POSTGRES_HOST}
+POSTGRES_PORT=${POSTGRES_PORT}
+EOL
 
-            echo "Creating .env file..."
-            # Use multiple echo statements instead of heredoc
-            echo "DATABASE_URL=${DB_URL}" > .env
-            echo "SECRET_KEY=$(openssl rand -hex 32)" >> .env
-            echo "ALGORITHM=HS256" >> .env
-            echo "ACCESS_TOKEN_EXPIRE_MINUTES=30" >> .env
-            echo 'PROJECT_NAME=FastAPI API' >> .env
-            echo "API_V1_STR=/api/v1" >> .env
-            echo "VERSION=0.1.0" >> .env
-            echo 'BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]' >> .env
-
-            chmod 600 .env
-
-            echo "Testing database connection..."
-            python -c "import psycopg2, os; print('Connecting...'); psycopg2.connect(os.environ['DATABASE_URL']); print('DB connection successful!')" || (echo "DB connection failed!" && exit 1)
-
-            echo "Running migrations..."
-            alembic upgrade head || echo "Alembic migration failed, check later."
-
-            echo "Setting up PM2..."
-            if ! command -v pm2 &> /dev/null; then
-              sudo npm install -g pm2
+            echo "Running database migrations..."
+            if [ -d "alembic" ]; then
+              alembic upgrade head
+            else
+              echo "No Alembic folder found — skipping migrations."
             fi
 
-            echo "Creating start script..."
-            # Write start.sh line by line instead of using heredoc
-            echo '#!/bin/bash' > start.sh
-            echo 'source venv/bin/activate' >> start.sh
-            echo 'set -a' >> start.sh
-            echo 'source .env' >> start.sh
-            echo 'set +a' >> start.sh
-            echo "exec uvicorn main:app --host 0.0.0.0 --port ${PORT}" >> start.sh
+            echo "Checking if PM2 is installed..."
+            if ! command -v pm2 &> /dev/null; then
+              echo "PM2 not found, installing..."
+              npm install -g pm2
+            else
+              echo "PM2 is already installed"
+            fi
 
-            chmod +x start.sh
-
-            echo "Creating ecosystem config..."
-            # Write ecosystem.config.js without using heredoc
-            echo 'module.exports = {' > ecosystem.config.js
-            echo '  apps: [{' >> ecosystem.config.js
-            echo "    name: \"${APP_NAME}\"," >> ecosystem.config.js
-            echo "    script: \"${TARGET_DIR}/start.sh\"," >> ecosystem.config.js
-            echo "    cwd: \"${TARGET_DIR}\"," >> ecosystem.config.js
-            echo '    interpreter: "/bin/bash"' >> ecosystem.config.js
-            echo '  }]' >> ecosystem.config.js
-            echo '}' >> ecosystem.config.js
-
-            echo "Starting app with PM2..."
-            if pm2 list | grep -q "$APP_NAME"; then
+            echo "Starting or restarting FastAPI app with PM2..."
+            if pm2 list | grep -q $APP_NAME; then
               pm2 restart $APP_NAME
             else
-              pm2 start ecosystem.config.js
+              pm2 start venv/bin/uvicorn --name $APP_NAME -- \
+                main:app --host 0.0.0.0 --port=$PORT
             fi
 
             pm2 save
-          ENDSSH
+          EOF
+
+
+
