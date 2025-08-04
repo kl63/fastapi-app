@@ -58,7 +58,7 @@ jobs:
             DB_URL="postgresql://${POSTGRES_USER}:${ENCODED_PW}@127.0.0.1:5432/${POSTGRES_DB}"
 
             echo "Creating .env file..."
-            cat > .env << EOF
+            cat > .env << 'EOF'
 DATABASE_URL=$DB_URL
 SECRET_KEY=$(openssl rand -hex 32)
 ALGORITHM=HS256
@@ -68,6 +68,8 @@ API_V1_STR=/api/v1
 VERSION=0.1.0
 BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
 EOF
+            # Apply variable substitution after creating the file
+            sed -i "s|\$DB_URL|${DB_URL}|g" .env
 
             chmod 600 .env
 
@@ -83,28 +85,31 @@ EOF
             fi
 
             echo "Creating start script..."
-            cat > start.sh << EOF
+            cat > start.sh << 'EOF'
 #!/bin/bash
 source venv/bin/activate
 set -a
 source .env
 set +a
-exec uvicorn main:app --host 0.0.0.0 --port $PORT
+exec uvicorn main:app --host 0.0.0.0 --port PORT_PLACEHOLDER
 EOF
+            sed -i "s|PORT_PLACEHOLDER|${PORT}|g" start.sh
 
             chmod +x start.sh
 
             echo "Creating ecosystem config..."
-            cat > ecosystem.config.js << EOF
+            cat > ecosystem.config.js << 'EOF'
 module.exports = {
   apps: [{
-    name: "$APP_NAME",
-    script: "$TARGET_DIR/start.sh",
-    cwd: "$TARGET_DIR",
+    name: "APP_NAME_PLACEHOLDER",
+    script: "TARGET_DIR_PLACEHOLDER/start.sh",
+    cwd: "TARGET_DIR_PLACEHOLDER",
     interpreter: "/bin/bash"
   }]
 }
 EOF
+            sed -i "s|APP_NAME_PLACEHOLDER|${APP_NAME}|g" ecosystem.config.js
+            sed -i "s|TARGET_DIR_PLACEHOLDER|${TARGET_DIR}|g" ecosystem.config.js
 
             echo "Starting app with PM2..."
             if pm2 list | grep -q "$APP_NAME"; then
