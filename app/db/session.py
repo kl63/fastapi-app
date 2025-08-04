@@ -11,36 +11,19 @@ load_dotenv()
 # Import settings after loading environment variables
 from app.core.config import settings
 
-# Determine if we're using an async URL
-is_async = '+asyncpg' in settings.DATABASE_URL
+# We're not using async PostgreSQL in this project, so ensure we have a proper sync connection
+# Convert any accidental asyncpg connection strings to standard psycopg2
+if '+asyncpg' in settings.DATABASE_URL:
+    settings.DATABASE_URL = re.sub(r'\+asyncpg', '', settings.DATABASE_URL)
 
-# Create appropriate engine based on URL
-if is_async:
-    # For async connections
-    async_engine = create_async_engine(
-        settings.DATABASE_URL,
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-    )
-    
-    # Also create a synchronous URL for the health check
-    sync_url = re.sub(r'\+asyncpg', '', settings.DATABASE_URL)
-    engine = create_engine(
-        sync_url,
-        pool_pre_ping=True,
-        pool_size=3,  # Smaller pool for health checks
-    )
-else:
-    # For synchronous connections
-    engine = create_engine(
-        settings.DATABASE_URL,
-        connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-    )
-    async_engine = None
+# Create engine with appropriate connect args based on DB type
+engine = create_engine(
+    settings.DATABASE_URL,
+    connect_args={"check_same_thread": False} if settings.DATABASE_URL.startswith("sqlite") else {},
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+)
 
 # Create SessionLocal class for dependency injection
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

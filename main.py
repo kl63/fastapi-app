@@ -45,18 +45,41 @@ def health_check():
     db_response_time = 0
     
     try:
-        # Test database connection with proper error handling
-        # Using synchronous endpoint for simplicity
-        db = SessionLocal()
+        # Don't use SQLAlchemy for health check to avoid greenlet issues
+        # Instead use direct psycopg2 connection
+        import psycopg2
+        from urllib.parse import urlparse
         
-        # Use a simple health check query
-        db.execute(text("SELECT 1"))
+        # Parse DATABASE_URL to get connection parameters
+        if settings.DATABASE_URL.startswith('postgresql'):
+            parsed = urlparse(settings.DATABASE_URL)
+            dbname = parsed.path.lstrip('/')
+            user = parsed.username
+            password = parsed.password
+            host = parsed.hostname
+            port = parsed.port or 5432
+            
+            # Connect directly with psycopg2
+            conn = psycopg2.connect(
+                dbname=dbname,
+                user=user,
+                password=password,
+                host=host,
+                port=port
+            )
+            cur = conn.cursor()
+            cur.execute("SELECT 1")
+            cur.close()
+            conn.close()
+        else:
+            # Fallback to SQLAlchemy for SQLite or other DBs
+            db = SessionLocal()
+            db.execute(text("SELECT 1"))
+            db.close()
+            
         db_response_time = round((time.time() - start_time) * 1000, 2)  # in ms
     except Exception as e:
         db_status = f"unhealthy: {str(e)}"
-    finally:
-        if 'db' in locals():
-            db.close()
     
     health_status = {
         "status": "healthy" if db_status == "healthy" else "unhealthy",
