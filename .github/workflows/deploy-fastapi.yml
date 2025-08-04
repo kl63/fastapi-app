@@ -82,24 +82,26 @@ jobs:
             echo "DATABASE_URL=postgresql://$POSTGRES_USER:$ESCAPED_PW@$POSTGRES_HOST:$DB_PORT/$POSTGRES_DB" >> .env
             echo "SECRET_KEY=supersecretkey" >> .env
 
-            echo 'Running database migrations...'
+            # Create necessary __init__.py files for proper Python package structure
+            touch app/__init__.py
+            touch app/db/__init__.py
+            
+            echo 'Setting up database with direct psycopg2 script...'
+            # Replace placeholders with actual values in our standalone script
+            sed -i "s/__POSTGRES_HOST__/$POSTGRES_HOST/g" setup_db.py
+            sed -i "s/__POSTGRES_USER__/$POSTGRES_USER/g" setup_db.py
+            sed -i "s/__POSTGRES_PASSWORD__/$POSTGRES_PASSWORD/g" setup_db.py
+            sed -i "s/__POSTGRES_DB__/$POSTGRES_DB/g" setup_db.py
+            
+            # Run the standalone setup script
+            python3 setup_db.py
+            
+            echo 'Database setup complete'
+            
+            # Also try Alembic migrations, but don't fail if they error
             if [ -d 'alembic' ]; then
-              # Try Alembic migrations, but don't fail if they error
-              alembic upgrade head || {
-                echo '⚠️ Alembic migrations failed, using fallback database initialization.'
-                # Create __init__.py files to ensure proper imports
-                touch app/__init__.py
-                touch app/db/__init__.py
-                # Run our fallback database initialization script
-                python3 -m app.db.init_db
-              }
-            else
-              echo '⚠️ No Alembic folder found — using fallback database initialization.'
-              # Create __init__.py files to ensure proper imports
-              touch app/__init__.py
-              touch app/db/__init__.py
-              # Run our fallback database initialization script
-              python3 -m app.db.init_db
+              echo 'Also trying Alembic migrations (optional)...'
+              alembic upgrade head || echo '⚠️ Alembic migrations failed, but we already set up the database directly'
             fi
 
             echo 'Ensuring PM2 is installed...'
