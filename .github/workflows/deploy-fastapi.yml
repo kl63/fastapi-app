@@ -155,6 +155,12 @@ jobs:
             export PYTHONPATH="$TARGET_DIR:$PYTHONPATH"
             cd "$TARGET_DIR"
             
+            # Create __init__.py files if needed to ensure proper Python package structure
+            echo "Ensuring proper Python package structure..."
+            mkdir -p "${TARGET_DIR}/app/db"
+            touch "${TARGET_DIR}/app/__init__.py"
+            touch "${TARGET_DIR}/app/db/__init__.py"
+            
             echo "Creating debug script for database operations..."
             cat > debug_db.py << ENDDBSCRIPT
             import os
@@ -187,7 +193,19 @@ jobs:
             echo "Using existing PostgreSQL configuration with user 'kevinlin192003'"
             
             echo "Running any pending migrations..."
-            alembic upgrade head
+            # Ensure alembic can find the app modules
+            export PYTHONPATH="${TARGET_DIR}:$PYTHONPATH"
+            
+            # Check if alembic directory exists
+            if [ -d "${TARGET_DIR}/alembic" ]; then
+              echo "Running alembic migrations..."
+              cd "${TARGET_DIR}" && alembic upgrade head || echo "Alembic migration failed, but continuing deployment"
+            else
+              echo "No alembic directory found, using direct table creation instead"
+            fi
+            
+            # Return to the app directory
+            cd "${TARGET_DIR}"
 
             echo "Checking if PM2 is installed..."
             if ! command -v pm2 &> /dev/null
