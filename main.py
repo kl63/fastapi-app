@@ -38,7 +38,7 @@ async def root():
 
 # Health check endpoint
 @app.get("/health", tags=["Health"])
-async def health_check():
+def health_check():
     # Check database connection
     db_status = "healthy"
     start_time = time.time()
@@ -46,6 +46,7 @@ async def health_check():
     
     try:
         # Test database connection with proper error handling
+        # Using synchronous endpoint for simplicity
         db = SessionLocal()
         
         # Use a simple health check query
@@ -72,6 +73,7 @@ async def health_check():
         "version": settings.VERSION
     }
     
+    # Return with appropriate status code
     status_code = status.HTTP_200_OK if health_status["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
     return JSONResponse(content=health_status, status_code=status_code)
 
