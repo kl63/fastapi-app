@@ -41,7 +41,7 @@ jobs:
           POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
 
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOSSH'
             set -e
             echo "Navigating to project directory..."
             cd $TARGET_DIR
@@ -61,13 +61,11 @@ jobs:
             pip install -r requirements.txt
 
             echo "Writing environment variables to .env file..."
-            cat > .env << EOL
-POSTGRES_USER=${POSTGRES_USER}
-POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-POSTGRES_DB=${POSTGRES_DB}
-POSTGRES_HOST=${POSTGRES_HOST}
-POSTGRES_PORT=${POSTGRES_PORT}
-EOL
+            echo "POSTGRES_USER=${POSTGRES_USER}" > .env
+            echo "POSTGRES_PASSWORD=${POSTGRES_PASSWORD}" >> .env
+            echo "POSTGRES_DB=${POSTGRES_DB}" >> .env
+            echo "POSTGRES_HOST=${POSTGRES_HOST}" >> .env
+            echo "POSTGRES_PORT=${POSTGRES_PORT}" >> .env
 
             echo "Running database migrations..."
             if [ -d "alembic" ]; then
@@ -93,7 +91,4 @@ EOL
             fi
 
             pm2 save
-          EOF
-
-
-
+          EOSSH
