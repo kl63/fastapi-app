@@ -13,19 +13,56 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 def setup_database():
-    """Create database tables directly using psycopg2."""
+    """Create database and tables directly using psycopg2."""
     # Hardcode database connection parameters - these will be replaced during deployment
-    db_params = {
-        'host': '__POSTGRES_HOST__',
-        'port': '5432',  # Always use default PostgreSQL port
-        'user': '__POSTGRES_USER__',
-        'password': '__POSTGRES_PASSWORD__',
-        'dbname': '__POSTGRES_DB__'
-    }
-
+    db_host = '__POSTGRES_HOST__'
+    db_port = '5432'  # Always use default PostgreSQL port
+    db_user = '__POSTGRES_USER__'
+    db_password = '__POSTGRES_PASSWORD__'
+    db_name = '__POSTGRES_DB__'
+    
+    # First, connect to the default postgres database to create our app database if needed
     try:
-        logger.info("Connecting to PostgreSQL database...")
-        conn = psycopg2.connect(**db_params)
+        logger.info("Connecting to default PostgreSQL database to create application database...")
+        conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            dbname='postgres'  # Connect to default database first
+        )
+        conn.autocommit = True  # Important for creating database
+        cursor = conn.cursor()
+        
+        # Check if our database exists, if not create it
+        cursor.execute(f"SELECT 1 FROM pg_catalog.pg_database WHERE datname = '{db_name}';")
+        exists = cursor.fetchone()
+        
+        if not exists:
+            logger.info(f"Creating database '{db_name}'...")
+            # Escape any quotes in the database name
+            safe_db_name = db_name.replace("'", "'''")
+            cursor.execute(f"CREATE DATABASE \"{safe_db_name}\";")
+            logger.info(f"Database '{db_name}' created.")
+        else:
+            logger.info(f"Database '{db_name}' already exists.")
+            
+        cursor.close()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Error creating database: {e}")
+        sys.exit(1)
+
+    # Now connect to our application database to create tables
+    try:
+        logger.info(f"Connecting to application database '{db_name}'...")
+        conn = psycopg2.connect(
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            dbname=db_name
+        )
         conn.autocommit = True
         cursor = conn.cursor()
         
@@ -50,10 +87,11 @@ def setup_database():
         logger.info("Database setup completed successfully!")
         
     except Exception as e:
-        logger.error(f"Error setting up database: {e}")
+        logger.error(f"Error setting up database tables: {e}")
         sys.exit(1)
     finally:
         if 'conn' in locals() and conn:
+            cursor.close()
             conn.close()
             logger.info("Database connection closed")
 
