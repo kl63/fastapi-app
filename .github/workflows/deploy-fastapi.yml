@@ -27,8 +27,8 @@ jobs:
         env:
           HOST: 159.89.245.206
           USERNAME: kevinlin192003
-          TARGET_DIR: /var/www/fastapi_app
-          APP_NAME: fastapi_app
+          TARGET_DIR: /var/www/fastapi-app
+          APP_NAME: fastapi-app
           PORT: 8000
 
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
@@ -50,7 +50,7 @@ jobs:
             # If repo not cloned yet, clone it
             if [ ! -d '.git' ]; then
               echo 'Cloning repository for the first time...'
-              git clone https://github.com/${GITHUB_REPOSITORY}.git .
+              git clone https://github.com/kl63/fastapi-app.git .
             fi
 
             echo 'Fetching latest code...'
@@ -68,11 +68,11 @@ jobs:
             pip install -r requirements.txt
 
             echo 'Writing environment variables to .env file...'
-            echo 'POSTGRES_USER=$POSTGRES_USER' > .env
-            echo 'POSTGRES_PASSWORD=$POSTGRES_PASSWORD' >> .env
-            echo 'POSTGRES_DB=$POSTGRES_DB' >> .env
-            echo 'POSTGRES_HOST=$POSTGRES_HOST' >> .env
-            echo 'POSTGRES_PORT=$POSTGRES_PORT' >> .env
+            echo "POSTGRES_USER=$POSTGRES_USER" > .env
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
+            echo "POSTGRES_DB=$POSTGRES_DB" >> .env
+            echo "POSTGRES_HOST=$POSTGRES_HOST" >> .env
+            echo "POSTGRES_PORT=$POSTGRES_PORT" >> .env
 
             echo 'Running database migrations...'
             if [ -d 'alembic' ]; then
