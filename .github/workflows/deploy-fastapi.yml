@@ -1,17 +1,9 @@
-# Deploy FastAPI App with PostgreSQL
-#
-# Required GitHub Secrets:
-# - SSH_PRIVATE_KEY: SSH private key for server access
-# - POSTGRES_USER: PostgreSQL username (e.g., kevinlin192003)
-# - POSTGRES_PASSWORD: PostgreSQL password 
-# - POSTGRES_DB: PostgreSQL database name (default: fastapi_app if not specified)
-#
 name: Deploy FastAPI App
 
 on:
   push:
     branches:
-      - main # Change if deploying a different branch
+      - main
 
 jobs:
   deploy:
@@ -36,166 +28,90 @@ jobs:
 
       - name: Deploy to DigitalOcean server
         env:
-          HOST: 159.89.245.206 # Update with your server IP
-          USERNAME: kevinlin192003  # Or another user with sudo privileges
+          HOST: 159.89.245.206
+          USERNAME: kevinlin192003
           TARGET_DIR: /var/www/fastapi-app
           APP_NAME: fastapi-app
           PORT: 8000
-
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'fastapi_app' }}
         run: |
-          # Define variables - will be substituted in the heredoc because we're not using 'ENDSSH' with quotes
-          TARGET_DIR="/var/www/fastapi-app"
-          APP_NAME="fastapi-app"
-          PORT="8000"
-          
-          # Use SSH with proper variable expansion (no quotes around ENDSSH allows variable substitution)
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST bash << ENDSSH
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'ENDSSH'
             set -e
-            echo "Creating project directory if needed..."
-            mkdir -p ${TARGET_DIR}
-            echo "Navigating to project directory..."
-            cd ${TARGET_DIR}
+            cd $TARGET_DIR || mkdir -p $TARGET_DIR && cd $TARGET_DIR
 
-            echo "Fetching and resetting to latest GitHub commit..."
+            echo "Fetching latest code..."
             git fetch origin
             git reset --hard origin/main
 
             echo "Creating/updating virtual environment..."
-            if [ ! -d "venv" ]; then
-              echo "Creating new virtual environment..."
-              python3 -m venv venv
-            fi
-            
-            echo "Activating virtual environment..."
+            [ ! -d "venv" ] && python3 -m venv venv
             source venv/bin/activate
-            
+
             echo "Installing dependencies..."
             pip install --upgrade pip
-            pip install -r requirements.txt
+            pip install -r requirements.txt --break-system-packages
 
-            echo "Creating production .env file..."
-            # Use separate echo statements for better YAML compatibility
-            echo "# Application settings" > "$TARGET_DIR/.env"
-            echo "PROJECT_NAME=FastAPI Boilerplate" >> "$TARGET_DIR/.env"
-            echo "VERSION=0.1.0" >> "$TARGET_DIR/.env"
-            echo "DESCRIPTION=FastAPI Boilerplate with SQLAlchemy, JWT Auth, and Alembic" >> "$TARGET_DIR/.env"
-            echo "" >> "$TARGET_DIR/.env"
-            echo "# API settings" >> "$TARGET_DIR/.env"
-            echo "API_V1_STR=" >> "$TARGET_DIR/.env"
-            echo "" >> "$TARGET_DIR/.env"
-            echo "# Security - Using a long secure random string" >> "$TARGET_DIR/.env"
-            echo "SECRET_KEY=A38Lhs17o53sUebdKS1UHZn9U4edKsTHYE7QHrE5JSX4DuC6g72plG9q2TuMspL8" >> "$TARGET_DIR/.env"
-            echo "ALGORITHM=HS256" >> "$TARGET_DIR/.env"
-            echo "ACCESS_TOKEN_EXPIRE_MINUTES=10080" >> "$TARGET_DIR/.env"
-            echo "" >> "$TARGET_DIR/.env"
-            echo "# CORS origins - Default production settings" >> "$TARGET_DIR/.env"
-            echo 'BACKEND_CORS_ORIGINS=["https://myapp.com","http://localhost:3000"]' >> "$TARGET_DIR/.env"
-            echo "" >> "$TARGET_DIR/.env"
-            echo "# Database configuration - Using production database settings" >> "$TARGET_DIR/.env"
-            # URL encode any special characters in the password using Python
-            echo "Setting up database connection..."
-            
-            # Create database connection and export to environment
-            if [ -n "${{ secrets.POSTGRES_PASSWORD }}" ]; then
-              ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${{ secrets.POSTGRES_PASSWORD }}'))")
-              DB_NAME="${{ secrets.POSTGRES_DB || 'fastapi_app' }}"
-              DB_USER="${{ secrets.POSTGRES_USER }}"
-              DB_URL="postgresql://${DB_USER}:${ENCODED_PW}@localhost:5432/${DB_NAME}"
-              
-              # Skip database creation on the server - we'll use the app's built-in initialization
-              # Just ensure the DATABASE_URL is correctly set
-              echo "Skipping database creation - will be handled by application"
-              
-              # Check if PostgreSQL is running
-              echo "Checking PostgreSQL service status..."
-              systemctl status postgresql || echo "PostgreSQL service check failed but continuing..."
-              
-              # Use pre-made script for database testing
-              echo "Testing database connection..."
-              python ${TARGET_DIR}/scripts/test_db.py "${DB_URL}" || echo "Database connection test failed, but continuing..."
-              
-              # Write DATABASE_URL to .env file
-              echo "DATABASE_URL=${DB_URL}" >> "$TARGET_DIR/.env"
-              
-              # Export to current shell environment
-              export DATABASE_URL="${DB_URL}"
-              echo "Database URL created and exported to environment: ${DB_URL}"
-              
-              # Debug check with better error handling
-              echo "Testing PostgreSQL connection..."
-              python3 -c "import psycopg2; import os; print('DATABASE_URL =', os.environ.get('DATABASE_URL')); conn = psycopg2.connect('${DB_URL}'); print('Connection successful!')" || echo "Connection failed, but continuing..."
-            else
-              echo "ERROR: Required GitHub secrets not set. Please add POSTGRES_USER and POSTGRES_PASSWORD secrets."
-              exit 1
-            fi
+            echo "Encoding DB password..."
+            ENCODED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote('${POSTGRES_PASSWORD}'))")
+            DB_URL="postgresql://${POSTGRES_USER}:${ENCODED_PW}@127.0.0.1:5432/${POSTGRES_DB}"
 
-            echo "Setting proper Python path..."
-            export PYTHONPATH="$TARGET_DIR:$PYTHONPATH"
-            cd "$TARGET_DIR"
-            
-            # Create __init__.py files if needed to ensure proper Python package structure
-            echo "Ensuring proper Python package structure..."
-            mkdir -p "${TARGET_DIR}/app/db"
-            touch "${TARGET_DIR}/app/__init__.py"
-            touch "${TARGET_DIR}/app/db/__init__.py"
-            
-            echo "Setting up database tables with better error handling..."
-            python ${TARGET_DIR}/scripts/debug_db.py
-            
-            echo "Initializing database with initial data..."
-            python -m app.utils.init_db || echo "Error initializing database data, but continuing deployment"
-            
-            # Create alembic table to prevent migration errors
-            python -c "import sqlalchemy as sa; from app.db.session import engine; conn=engine.connect(); conn.execute(sa.text('CREATE TABLE IF NOT EXISTS alembic_version (version_num VARCHAR(32) NOT NULL, CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num))'));"
-            
-            echo "Using existing PostgreSQL configuration with user 'kevinlin192003'"
-            
-            echo "Running any pending migrations..."
-            # Ensure alembic can find the app modules
-            export PYTHONPATH="${TARGET_DIR}:$PYTHONPATH"
-            
-            # Check if alembic directory exists
-            if [ -d "${TARGET_DIR}/alembic" ]; then
-              echo "Running alembic migrations..."
-              cd "${TARGET_DIR}" && alembic upgrade head || echo "Alembic migration failed, but continuing deployment"
-            else
-              echo "No alembic directory found, using direct table creation instead"
-            fi
-            
-            # Return to the app directory
-            cd "${TARGET_DIR}"
+            echo "Creating .env file..."
+            cat > .env << EOF
+DATABASE_URL=$DB_URL
+SECRET_KEY=$(openssl rand -hex 32)
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+PROJECT_NAME=FastAPI API
+API_V1_STR=/api/v1
+VERSION=0.1.0
+BACKEND_CORS_ORIGINS=["http://localhost:3000","http://localhost:8000"]
+EOF
 
-            echo "Checking if PM2 is installed..."
-            if ! command -v pm2 &> /dev/null
-            then
-              echo "PM2 not found, installing..."
+            chmod 600 .env
+
+            echo "Testing database connection..."
+            python -c "import psycopg2, os; print('Connecting...'); psycopg2.connect(os.environ['DATABASE_URL']); print('DB connection successful!')" || (echo "DB connection failed!" && exit 1)
+
+            echo "Running migrations..."
+            alembic upgrade head || echo "Alembic migration failed, check later."
+
+            echo "Setting up PM2..."
+            if ! command -v pm2 &> /dev/null; then
               sudo npm install -g pm2
-            else
-              echo "PM2 is already installed"
-            fi
-            
-            # Ensure proper permissions on directories
-            chmod 755 $TARGET_DIR
-
-            echo "Creating PM2 startup script..."
-            # Create a start script for PM2
-            echo "Creating startup script..."
-            echo '#!/bin/bash' > "${TARGET_DIR}/start.sh"
-            echo "source \"${TARGET_DIR}/venv/bin/activate\"" >> "${TARGET_DIR}/start.sh"
-            echo "cd \"${TARGET_DIR}\"" >> "${TARGET_DIR}/start.sh"
-            echo "exec uvicorn main:app --host 0.0.0.0 --port ${PORT}" >> "${TARGET_DIR}/start.sh"
-            
-            chmod +x ${TARGET_DIR}/start.sh
-            
-            echo "Checking if PM2 process exists..."
-            if pm2 list | grep -q "${APP_NAME}"; then
-              echo "Restarting existing app: ${APP_NAME}"
-              pm2 restart ${APP_NAME}
-            else
-              echo "Starting application: ${APP_NAME}"
-              pm2 start ${TARGET_DIR}/start.sh --name ${APP_NAME}
             fi
 
-            echo "Saving PM2 state..."
+            echo "Creating start script..."
+            cat > start.sh << EOF
+#!/bin/bash
+source venv/bin/activate
+set -a
+source .env
+set +a
+exec uvicorn main:app --host 0.0.0.0 --port $PORT
+EOF
+
+            chmod +x start.sh
+
+            echo "Creating ecosystem config..."
+            cat > ecosystem.config.js << EOF
+module.exports = {
+  apps: [{
+    name: "$APP_NAME",
+    script: "$TARGET_DIR/start.sh",
+    cwd: "$TARGET_DIR",
+    interpreter: "/bin/bash"
+  }]
+}
+EOF
+
+            echo "Starting app with PM2..."
+            if pm2 list | grep -q "$APP_NAME"; then
+              pm2 restart $APP_NAME
+            else
+              pm2 start ecosystem.config.js
+            fi
+
             pm2 save
           ENDSSH
