@@ -1,35 +1,7 @@
-name: Deploy FastAPI App
-
-on:
-  push:
-    branches:
-      - main  # Change if deploying a different branch
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Check Python version
-        run: python --version
-
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.5.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-
       - name: Deploy to DigitalOcean
         env:
           HOST: 159.89.245.206
-          USERNAME: root
+          USERNAME: kevinlin192003   # ✅ changed from root
           TARGET_DIR: /var/www/fastapi_app
           APP_NAME: fastapi_app
           PORT: 8000
