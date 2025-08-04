@@ -26,24 +26,67 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy to DigitalOcean server
+      - name: Deploy to DigitalOcean
         env:
-          HOST: 159.89.245.206
-          USERNAME: kevinlin192003
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USERNAME: ${{ secrets.DEPLOY_USERNAME }}
           TARGET_DIR: /var/www/fastapi-app
           APP_NAME: fastapi-app
           PORT: 8000
+          REPO_URL: https://github.com/kl63/fastapi-app.git
           POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'fastapi_app' }}
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'ENDSSH'
             set -e
-            cd $TARGET_DIR || mkdir -p $TARGET_DIR && cd $TARGET_DIR
+            # Define application directory and name
+            TARGET_DIR="/var/www/fastapi-app"
+            APP_NAME="fastapi-app"
+            PORT="8000"
+            REPO_URL="https://github.com/kl63/fastapi-app.git"
 
-            echo "Fetching latest code..."
-            git fetch origin
-            git reset --hard origin/main
+            echo "Deploying application..."
+            if [ -d "$TARGET_DIR/.git" ]; then
+              echo "Git repository exists, pulling latest changes..."
+              cd "$TARGET_DIR"
+              git fetch --all
+              git reset --hard origin/main
+            else
+              echo "Initial deployment - cloning repository..."
+              # Ensure directory is empty or create it
+              rm -rf "$TARGET_DIR"
+              mkdir -p "$TARGET_DIR"
+              git clone "$REPO_URL" "$TARGET_DIR"
+            fi
+            
+            # Change to project directory
+            cd "$TARGET_DIR"
+            echo "Repository setup complete"
+
+            # Set up Python environment and paths
+            echo "Setting proper Python path..."
+            export PYTHONPATH="$TARGET_DIR:$PYTHONPATH"
+            
+            # Create necessary __init__.py files
+            echo "Ensuring proper Python package structure..."
+            mkdir -p "${TARGET_DIR}/app/db"
+            touch "${TARGET_DIR}/app/__init__.py"
+            touch "${TARGET_DIR}/app/db/__init__.py"
+            
+            # Fix Alembic configuration if it exists
+            if [ -d "${TARGET_DIR}/alembic" ]; then
+              echo "Setting up Alembic directory structure..."
+              mkdir -p "${TARGET_DIR}/alembic/versions"
+              touch "${TARGET_DIR}/alembic/__init__.py"
+              touch "${TARGET_DIR}/alembic/versions/__init__.py"
+              
+              # Fix common alembic script path issues
+              if [ -f "${TARGET_DIR}/alembic/env.py" ]; then
+                echo "Patching alembic env.py to fix import issues..."
+                sed -i "s|from app import|import sys\nif '.' not in sys.path:\n    sys.path.insert(0, '.')\nfrom app import|" "${TARGET_DIR}/alembic/env.py" || echo "Failed to patch alembic/env.py but continuing..."
+              fi
+            fi
 
             echo "Creating/updating virtual environment..."
             [ ! -d "venv" ] && python3 -m venv venv
