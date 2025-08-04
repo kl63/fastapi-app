@@ -76,8 +76,10 @@ jobs:
             # Create DATABASE_URL with proper escaping for special characters
             # First, double escape the password for both shell and Python
             ESCAPED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote_plus('$POSTGRES_PASSWORD'))")
-            # Then construct the full URL
-            echo "DATABASE_URL=postgresql://$POSTGRES_USER:$ESCAPED_PW@$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB" >> .env
+            # Ensure we have a port - use 5432 as default if not specified
+            DB_PORT=${POSTGRES_PORT:-5432}
+            # Then construct the full URL with the validated port
+            echo "DATABASE_URL=postgresql://$POSTGRES_USER:$ESCAPED_PW@$POSTGRES_HOST:$DB_PORT/$POSTGRES_DB" >> .env
             echo "SECRET_KEY=supersecretkey" >> .env
 
             echo 'Running database migrations...'
