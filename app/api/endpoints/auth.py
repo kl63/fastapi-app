@@ -23,7 +23,7 @@ router = APIRouter()
 def register_user(
     *,
     db: Session = Depends(get_db),
-    user_in: UserRegister,
+    user_in: UserCreate,
 ) -> Any:
     """
     Register a new user
@@ -36,26 +36,16 @@ def register_user(
             detail="Email already registered",
         )
     
-    # Create username from email (for internal use)
-    username = user_in.email.split('@')[0] + str(uuid.uuid4())[:8]
-    
-    # Check if username exists (unlikely but just in case)
-    user_by_username = get_user_by_username(db, username=username)
+    # Check if username exists
+    user_by_username = get_user_by_username(db, username=user_in.username)
     if user_by_username:
-        username = user_in.email.split('@')[0] + str(uuid.uuid4())[:12]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username already registered",
+        )
     
-    # Create user object for internal creation
-    user_create = UserCreate(
-        email=user_in.email,
-        username=username,
-        password=user_in.password,
-        first_name=user_in.first_name,
-        last_name=user_in.last_name,
-        phone=user_in.phone,
-    )
-    
-    # Create new user
-    user = create_user(db, user_in=user_create)
+    # Create new user directly with UserCreate object
+    user = create_user(db, user_in=user_in)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
