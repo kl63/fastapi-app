@@ -89,13 +89,14 @@ jobs:
             echo 'Setting up database with direct SQL script...'
             
             # Create database if it doesn't exist
-            PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $POSTGRES_DB;" || {
+            export PGPASSWORD="$POSTGRES_PASSWORD"
+            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\";" || {
               echo "Database $POSTGRES_DB might already exist, continuing..."
             }
             
             # Execute SQL setup script to create tables
             echo "Executing SQL setup script to create tables..."
-            PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f setup_db.sql
+            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f setup_db.sql
             
             echo 'Database setup complete'
             
