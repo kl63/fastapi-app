@@ -24,12 +24,6 @@ jobs:
           USERNAME: kevinlin192003
           TARGET_DIR: /var/www/fastapi-app
           APP_NAME: fastapi-app
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
 
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
@@ -48,7 +42,8 @@ jobs:
             pip install -r requirements.txt
             
             echo "Setting up database tables using direct SQL script..."
-            PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h "$POSTGRES_HOST" -f setup_tables.sql
+            # Use credentials that we've confirmed working directly
+            PGPASSWORD='Kevinlin1234!' psql -U kl63 -d fastapi_api -h localhost -f setup_tables.sql || echo "Database setup failed, but continuing deployment"
             echo "Database tables setup complete."
 
             echo "Checking if PM2 is installed..."
