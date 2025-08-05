@@ -13,11 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
       - name: Set up SSH
         uses: webfactory/ssh-agent@v0.5.1
         with:
@@ -29,115 +24,35 @@ jobs:
           USERNAME: kevinlin192003
           TARGET_DIR: /var/www/fastapi-app
           APP_NAME: fastapi-app
-          PORT: 8000
-
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-          POSTGRES_HOST: ${{ secrets.POSTGRES_HOST }}
-          POSTGRES_PORT: ${{ secrets.POSTGRES_PORT }}
 
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
             set -e
-
-            echo '🚀 Starting deployment on server...'
-
-            # Create directory if missing
-            mkdir -p $TARGET_DIR
+            echo "Navigating to project directory..."
             cd $TARGET_DIR
 
-            # If repo not cloned yet, clone it
-            if [ ! -d '.git' ]; then
-              echo 'Cloning repository for the first time...'
-              git clone https://github.com/kl63/fastapi-app.git .
-            fi
-
-            echo 'Fetching latest code...'
+            echo "Fetching and resetting to latest GitHub commit..."
             git fetch origin
             git reset --hard origin/main
 
-            echo 'Setting up Python virtual environment...'
-            if [ ! -d 'venv' ]; then
-              python3 -m venv venv
-            fi
+            echo "Activating virtual environment..."
             source venv/bin/activate
 
-            echo 'Installing dependencies...'
-            pip install --upgrade pip
+            echo "Installing Python dependencies..."
             pip install -r requirements.txt
 
-            echo 'Writing environment variables to .env file...'
-            echo "POSTGRES_USER=$POSTGRES_USER" > .env
-            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
-            echo "POSTGRES_DB=$POSTGRES_DB" >> .env
-            echo "POSTGRES_HOST=$POSTGRES_HOST" >> .env
-            echo "POSTGRES_PORT=$POSTGRES_PORT" >> .env
-            # Create DATABASE_URL with proper escaping for special characters
-            # First, double escape the password for both shell and Python
-            ESCAPED_PW=$(python3 -c "import urllib.parse; print(urllib.parse.quote_plus('$POSTGRES_PASSWORD'))")
-            # Ensure we have a port - use 5432 as default if not specified
-            DB_PORT=${POSTGRES_PORT:-5432}
-            # Then construct the full URL with the validated port
-            echo "DATABASE_URL=postgresql://$POSTGRES_USER:$ESCAPED_PW@$POSTGRES_HOST:$DB_PORT/$POSTGRES_DB" >> .env
-            echo "SECRET_KEY=supersecretkey" >> .env
-
-            # Create necessary __init__.py files for proper Python package structure
-            touch app/__init__.py
-            touch app/db/__init__.py
-            
-            echo 'Setting up database with direct SQL script...'
-            
-            # Create database if it doesn't exist
-            export PGPASSWORD="$POSTGRES_PASSWORD"
-            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d postgres -c "CREATE DATABASE \"$POSTGRES_DB\";" || {
-              echo "Database $POSTGRES_DB might already exist, continuing..."
-            }
-            
-            # Execute SQL setup script to create tables
-            echo "Executing SQL setup script to create tables..."
-            psql -h "$POSTGRES_HOST" -U "$POSTGRES_USER" -d "$POSTGRES_DB" -f setup_db.sql
-            
-            echo 'Database setup complete'
-            
-            # Also try Alembic migrations, but don't fail if they error
-            if [ -d 'alembic' ]; then
-              echo 'Also trying Alembic migrations (optional)...'
-              alembic upgrade head || echo '⚠️ Alembic migrations failed, but we already set up the database directly'
-            fi
-
-            echo 'Ensuring PM2 is installed...'
-            if ! command -v pm2 &> /dev/null; then
+            echo "Checking if PM2 is installed..."
+            if ! command -v pm2 &> /dev/null
+            then
+              echo "PM2 not found, installing..."
               npm install -g pm2
-            fi
-
-            echo 'Creating PM2 ecosystem file for better environment variable handling...'
-            cat > ecosystem.config.js << EOF
-            module.exports = {
-              apps: [{
-                name: "$APP_NAME",
-                script: "venv/bin/uvicorn",
-                args: "main:app --host 0.0.0.0 --port=$PORT",
-                env: {
-                  "POSTGRES_USER": "$POSTGRES_USER",
-                  "POSTGRES_PASSWORD": "$POSTGRES_PASSWORD",
-                  "POSTGRES_DB": "$POSTGRES_DB",
-                  "POSTGRES_HOST": "$POSTGRES_HOST", 
-                  "POSTGRES_PORT": "5432",
-                  "DATABASE_URL": "postgresql://$POSTGRES_USER:$ESCAPED_PW@$POSTGRES_HOST:5432/$POSTGRES_DB",
-                  "SECRET_KEY": "supersecretkey"
-                }
-              }]
-            }
-            EOF
-            
-            echo 'Starting or restarting FastAPI app with PM2...'
-            if pm2 list | grep -q $APP_NAME; then
-              pm2 restart ecosystem.config.js
             else
-              pm2 start ecosystem.config.js
+              echo "PM2 is already installed"
             fi
 
+            echo "Restarting FastAPI application with PM2..."
+            pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
+
+            echo "Saving PM2 state..."
             pm2 save
-            echo '✅ Deployment complete!'
-          "
+          EOF
