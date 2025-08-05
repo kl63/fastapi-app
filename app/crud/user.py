@@ -41,9 +41,13 @@ def create_user(db: Session, user_in: UserCreate) -> User:
         email=user_in.email,
         username=user_in.username,
         hashed_password=get_password_hash(user_in.password),
-        full_name=user_in.full_name,
+        first_name=getattr(user_in, 'first_name', None),
+        last_name=getattr(user_in, 'last_name', None),
+        phone=getattr(user_in, 'phone', None),
+        date_of_birth=getattr(user_in, 'date_of_birth', None),
         is_active=user_in.is_active,
         is_admin=user_in.is_admin,
+        is_verified=getattr(user_in, 'is_verified', False),
     )
     db.add(db_user)
     db.commit()
@@ -74,14 +78,32 @@ def update_user(db: Session, db_user: User, user_in: Union[UserUpdate, Dict[str,
     return db_user
 
 
-def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
+def update_user_password(db: Session, user: User, new_password: str) -> bool:
+    """Update user password"""
+    try:
+        user.hashed_password = get_password_hash(new_password)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return True
+    except Exception:
+        db.rollback()
+        return False
+
+
+def authenticate_user(db: Session, username: str = None, email: str = None, password: str = None) -> Optional[User]:
     """Authenticate user by username/email and password"""
-    # Try to get user by username
-    user = get_user_by_username(db, username=username)
+    user = None
     
-    # If not found, try by email
-    if not user:
-        user = get_user_by_email(db, email=username)
+    # If email is provided, use email authentication
+    if email:
+        user = get_user_by_email(db, email=email)
+    # Otherwise, try username first, then email
+    elif username:
+        user = get_user_by_username(db, username=username)
+        # If not found, try by email (in case username is actually an email)
+        if not user:
+            user = get_user_by_email(db, email=username)
         
     # If no user found or password doesn't match
     if not user or not verify_password(password, user.hashed_password):

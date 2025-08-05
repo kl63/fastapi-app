@@ -15,7 +15,7 @@ from app.crud.user import get_user_by_id
 
 # OAuth2 password bearer for token authentication
 oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/auth/login"
+    tokenUrl="/auth/login"
 )
 
 

@@ -2,6 +2,7 @@ import uvicorn
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.security import OAuth2PasswordBearer
 import time
 from sqlalchemy import text
 
@@ -16,6 +17,7 @@ app = FastAPI(
     openapi_url="/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
+    swagger_ui_oauth2_redirect_url="/docs/oauth2-redirect",
 )
 
 # Set CORS middleware
@@ -101,7 +103,7 @@ def health_check():
     return JSONResponse(content=health_status, status_code=status_code)
 
 # Include API router
-app.include_router(api_router)
+app.include_router(api_router, prefix=settings.API_V1_STR)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
