@@ -86,15 +86,16 @@ jobs:
             touch app/__init__.py
             touch app/db/__init__.py
             
-            echo 'Setting up database with direct psycopg2 script...'
-            # Replace placeholders with actual values in our standalone script
-            sed -i "s/__POSTGRES_HOST__/$POSTGRES_HOST/g" setup_db.py
-            sed -i "s/__POSTGRES_USER__/$POSTGRES_USER/g" setup_db.py
-            sed -i "s/__POSTGRES_PASSWORD__/$POSTGRES_PASSWORD/g" setup_db.py
-            sed -i "s/__POSTGRES_DB__/$POSTGRES_DB/g" setup_db.py
+            echo 'Setting up database with direct SQL script...'
             
-            # Run the standalone setup script
-            python3 setup_db.py
+            # Create database if it doesn't exist
+            PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d postgres -c "CREATE DATABASE $POSTGRES_DB;" || {
+              echo "Database $POSTGRES_DB might already exist, continuing..."
+            }
+            
+            # Execute SQL setup script to create tables
+            echo "Executing SQL setup script to create tables..."
+            PGPASSWORD=$POSTGRES_PASSWORD psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f setup_db.sql
             
             echo 'Database setup complete'
             
