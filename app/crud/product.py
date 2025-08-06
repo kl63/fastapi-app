@@ -131,6 +131,7 @@ def create_product(db: Session, product_in: ProductCreate) -> Product:
         short_description=product_in.short_description,
         price=product_in.price,
         original_price=product_in.original_price,
+        cost_price=None,  # Add missing cost_price field
         sku=product_in.sku,
         category_id=product_in.category_id,
         brand=product_in.brand,
@@ -152,6 +153,11 @@ def create_product(db: Session, product_in: ProductCreate) -> Product:
         tags=product_in.tags,
         meta_title=product_in.meta_title,
         meta_description=product_in.meta_description,
+        # Add missing statistics fields with defaults
+        view_count=0,
+        purchase_count=0,
+        rating_average=0.0,
+        rating_count=0,
     )
     db.add(db_product)
     db.commit()
