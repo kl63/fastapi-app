@@ -9,6 +9,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    # Step 1: Define secrets as job-level env variables
+    env:
+      HOST: 159.89.245.206
+      USERNAME: kevinlin192003
+      TARGET_DIR: /var/www/fastapi-app
+      APP_NAME: fastapi-app
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -19,14 +28,8 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Deploy to DigitalOcean
-        env:
-          HOST: 159.89.245.206
-          USERNAME: kevinlin192003
-          TARGET_DIR: /var/www/fastapi-app
-          APP_NAME: fastapi-app
-
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
             set -e
             echo "Navigating to project directory..."
             cd $TARGET_DIR
@@ -40,23 +43,18 @@ jobs:
 
             echo "Installing Python dependencies..."
             pip install -r requirements.txt
-            
+
+            echo "Exporting secrets..."
+            export DATABASE_URL="${DATABASE_URL}"
+            export SECRET_KEY="${SECRET_KEY}"
+
             echo "Running database migrations with Alembic..."
-            # Set environment variables for database connection
-            export DATABASE_URL="postgresql://kl63:Kevinlin1234!@localhost:5432/fastapi_api"
-            export SECRET_KEY="${{ secrets.SECRET_KEY }}"
-            
-            # Run the deployment script which handles database creation and migrations
             python scripts/deploy.py || echo "Migration failed, but continuing deployment"
-            echo "Database migrations complete."
 
             echo "Checking if PM2 is installed..."
-            if ! command -v pm2 &> /dev/null
-            then
+            if ! command -v pm2 &> /dev/null; then
               echo "PM2 not found, installing..."
               npm install -g pm2
-            else
-              echo "PM2 is already installed"
             fi
 
             echo "Restarting FastAPI application with PM2..."
