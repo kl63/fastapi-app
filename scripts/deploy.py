@@ -19,6 +19,10 @@ sys.path.insert(0, str(root_path))
 
 from app.core.config import settings
 
+# ✅ DEBUG: Print the DATABASE_URL from env and settings
+print("🔍 DEBUG: DATABASE_URL from env:", os.getenv("DATABASE_URL"))
+print("🔍 DEBUG: DATABASE_URL from settings:", settings.DATABASE_URL)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
