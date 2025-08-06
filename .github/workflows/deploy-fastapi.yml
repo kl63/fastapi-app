@@ -3,13 +3,12 @@ name: Deploy FastAPI App
 on:
   push:
     branches:
-      - main  # Only run on main branch
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    # Step 1: Define secrets as job-level env variables
     env:
       HOST: 159.89.245.206
       USERNAME: kevinlin192003
@@ -17,6 +16,7 @@ jobs:
       APP_NAME: fastapi-app
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       SECRET_KEY: ${{ secrets.SECRET_KEY }}
+      GITHUB_REPO: git@github.com:YOUR_USERNAME/YOUR_REPO.git  # <-- CHANGE THIS!
 
     steps:
       - name: Checkout repository
@@ -31,35 +31,42 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
             set -e
+
+            echo "Checking if project directory exists..."
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+              echo "Cloning project repository..."
+              git clone $GITHUB_REPO $TARGET_DIR
+            fi
+
             echo "Navigating to project directory..."
             cd $TARGET_DIR
 
-            echo "Fetching and resetting to latest GitHub commit..."
+            echo "Fetching latest code from GitHub..."
             git fetch origin
             git reset --hard origin/main
 
-            echo "Activating virtual environment..."
+            echo "Activating Python virtual environment..."
             source venv/bin/activate
 
-            echo "Installing Python dependencies..."
+            echo "Installing dependencies..."
             pip install -r requirements.txt
 
             echo "Exporting secrets..."
             export DATABASE_URL="${DATABASE_URL}"
             export SECRET_KEY="${SECRET_KEY}"
 
-            echo "Running database migrations with Alembic..."
+            echo "Running Alembic migrations..."
             python scripts/deploy.py || echo "Migration failed, but continuing deployment"
 
-            echo "Checking if PM2 is installed..."
+            echo "Checking for PM2..."
             if ! command -v pm2 &> /dev/null; then
-              echo "PM2 not found, installing..."
+              echo "Installing PM2..."
               npm install -g pm2
             fi
 
-            echo "Restarting FastAPI application with PM2..."
+            echo "Restarting FastAPI app with PM2..."
             pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
 
-            echo "Saving PM2 state..."
+            echo "Saving PM2 process list..."
             pm2 save
           EOF
