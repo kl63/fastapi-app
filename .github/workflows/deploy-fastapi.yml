@@ -30,7 +30,7 @@ jobs:
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GITHUB_REPO: git@github.com:kl63/fastapi-app.git
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
             set -e
 
             echo "Checking if project directory exists..."
@@ -71,10 +71,8 @@ jobs:
             fi
 
             echo "Restarting FastAPI app with PM2..."
-            pm2 restart $APP_NAME --update-env || \
-            pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
+            pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
 
             echo "Saving PM2 state..."
             pm2 save
           EOF
-
