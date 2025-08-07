@@ -14,7 +14,6 @@ jobs:
       USERNAME: kevinlin192003
       TARGET_DIR: /var/www/fastapi-app
       APP_NAME: fastapi-app
-      GITHUB_REPO: git@github.com:kl63/fastapi-app.git
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
@@ -30,6 +29,9 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
             set -e
+
+            echo "Setting GITHUB_REPO manually..."
+            GITHUB_REPO="git@github.com:kl63/fastapi-app.git"
 
             echo "Checking if project directory exists..."
             if [ ! -d "$TARGET_DIR/.git" ]; then
