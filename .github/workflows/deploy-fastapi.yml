@@ -25,7 +25,7 @@ jobs:
 
       - name: Deploy to DigitalOcean
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << "EOF"
             set -e
 
             echo "Setting environment variables manually..."
