@@ -26,8 +26,6 @@ jobs:
 
       - name: Deploy to DigitalOcean
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GITHUB_REPO: git@github.com:kl63/fastapi-app.git
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "
@@ -56,10 +54,6 @@ jobs:
             echo 'Installing dependencies...'
             pip install --upgrade pip
             pip install -r requirements.txt
-
-            echo 'Injecting secrets as environment variables...'
-            export DATABASE_URL=\"$DATABASE_URL\"
-            export SECRET_KEY=\"$SECRET_KEY\"
 
             echo 'Running Alembic migrations...'
             python scripts/deploy.py || echo 'Migration failed, continuing...'
