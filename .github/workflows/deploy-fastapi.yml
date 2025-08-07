@@ -8,7 +8,9 @@ on:
 env:
   HOST: 159.89.245.206
   USERNAME: kevinlin192003
-  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  REPO_URL: git@github.com:kl63/fastapi-app.git
+  TARGET_DIR: /var/www/fastapi-app
+  APP_NAME: fastapi-app
 
 jobs:
   deploy:
@@ -24,30 +26,27 @@ jobs:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
       - name: Deploy to DigitalOcean
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST <<EOF
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST bash -s <<EOF
             set -e
 
-            echo "Setting variables..."
-            TARGET_DIR="/var/www/fastapi-app"
-            APP_NAME="fastapi-app"
-
             echo "Checking if project directory exists..."
-            if [ ! -d "$TARGET_DIR/.git" ]; then
+            if [ ! -d "${{ env.TARGET_DIR }}/.git" ]; then
               echo "Cloning project repository..."
-              git clone git@github.com:kl63/fastapi-app.git "$TARGET_DIR"
+              git clone "${{ env.REPO_URL }}" "${{ env.TARGET_DIR }}"
             fi
 
             echo "Navigating to project directory..."
-            cd "$TARGET_DIR"
+            cd "${{ env.TARGET_DIR }}"
 
-            echo "Fetching latest code from GitHub..."
+            echo "Fetching latest code..."
             git fetch origin
             git reset --hard origin/main
 
             echo "Activating virtual environment..."
             if [ ! -d "venv" ]; then
-              echo "Creating virtual environment..."
               python3 -m venv venv
             fi
             source venv/bin/activate
@@ -56,21 +55,17 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Exporting DATABASE_URL for Alembic..."
-            export DATABASE_URL="$DATABASE_URL"
+            echo "Exporting DATABASE_URL..."
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
 
             echo "Running deploy script..."
             python scripts/deploy.py || echo "Migration failed, continuing..."
 
-            echo "Checking for PM2..."
+            echo "Restarting with PM2..."
             if ! command -v pm2 &> /dev/null; then
-              echo "Installing PM2..."
               npm install -g pm2
             fi
+            pm2 restart ${{ env.APP_NAME }} || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name ${{ env.APP_NAME }}
 
-            echo "Restarting FastAPI app with PM2..."
-            pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
-
-            echo "Saving PM2 state..."
             pm2 save
           EOF
