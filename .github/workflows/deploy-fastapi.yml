@@ -26,11 +26,12 @@ jobs:
 
       - name: Deploy to DigitalOcean
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SECRET_KEY: ${{ secrets.SECRET_KEY }}
           GITHUB_REPO: git@github.com:kl63/fastapi-app.git
         run: |
           ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            export SECRET_KEY="${{ secrets.SECRET_KEY }}"
+
             set -e
 
             echo "Checking if project directory exists..."
@@ -57,10 +58,6 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Exporting secrets..."
-            export DATABASE_URL="${DATABASE_URL}"
-            export SECRET_KEY="${SECRET_KEY}"
-
             echo "Running Alembic migrations..."
             python scripts/deploy.py || echo "Migration failed, continuing..."
 
@@ -76,4 +73,3 @@ jobs:
             echo "Saving PM2 state..."
             pm2 save
           EOF
-
