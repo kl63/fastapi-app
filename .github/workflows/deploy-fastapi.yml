@@ -58,7 +58,7 @@ jobs:
             pip install -r requirements.txt
 
             echo "Exporting DATABASE_URL securely..."
-            export DATABASE_URL='${DATABASE_URL}'
+            export DATABASE_URL="${DATABASE_URL}"
 
             echo "Running deploy script..."
             python scripts/deploy.py || echo "Migration failed, continuing..."
