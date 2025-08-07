@@ -5,14 +5,15 @@ on:
     branches:
       - main
 
+env:
+  HOST: 159.89.245.206
+  USERNAME: kevinlin192003
+  GITHUB_REPO: git@github.com:kl63/fastapi-app.git
+  DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
-    env:
-      HOST: 159.89.245.206
-      USERNAME: kevinlin192003
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
     steps:
       - name: Checkout repository
@@ -25,11 +26,10 @@ jobs:
 
       - name: Deploy to DigitalOcean
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << EOF
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST <<EOF
             set -e
 
-            echo "Setting environment variables manually..."
-            GITHUB_REPO="git@github.com:kl63/fastapi-app.git"
+            echo "Setting variables..."
             TARGET_DIR="/var/www/fastapi-app"
             APP_NAME="fastapi-app"
 
@@ -57,8 +57,8 @@ jobs:
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Exporting DATABASE_URL..."
-            export DATABASE_URL="${DATABASE_URL}"
+            echo "Exporting DATABASE_URL for Alembic..."
+            export DATABASE_URL="$DATABASE_URL"
 
             echo "Running deploy script..."
             python scripts/deploy.py || echo "Migration failed, continuing..."
