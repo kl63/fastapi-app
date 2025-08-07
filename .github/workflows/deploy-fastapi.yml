@@ -1,54 +1,77 @@
-- name: Deploy to DigitalOcean
-  env:
-    DATABASE_URL: ${{ secrets.DATABASE_URL }}
-  run: |
-    ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
-      set -e
+name: Deploy FastAPI App
 
-      echo "Setting environment variables manually..."
-      GITHUB_REPO="git@github.com:kl63/fastapi-app.git"
-      TARGET_DIR="/var/www/fastapi-app"
-      APP_NAME="fastapi-app"
+on:
+  push:
+    branches:
+      - main
 
-      echo "Checking if project directory exists..."
-      if [ ! -d "$TARGET_DIR/.git" ]; then
-        echo "Cloning project repository..."
-        git clone "$GITHUB_REPO" "$TARGET_DIR"
-      fi
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-      echo "Navigating to project directory..."
-      cd "$TARGET_DIR"
+    env:
+      HOST: 159.89.245.206
+      USERNAME: kevinlin192003
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
-      echo "Fetching latest code from GitHub..."
-      git fetch origin
-      git reset --hard origin/main
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      echo "Activating virtual environment..."
-      if [ ! -d "venv" ]; then
-        echo "Creating virtual environment..."
-        python3 -m venv venv
-      fi
-      source venv/bin/activate
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.5.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      echo "Installing dependencies..."
-      pip install --upgrade pip
-      pip install -r requirements.txt
+      - name: Deploy to DigitalOcean
+        run: |
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST << 'EOF'
+            set -e
 
-      echo "Exporting DATABASE_URL securely..."
-      export DATABASE_URL='${DATABASE_URL}'
+            echo "Setting environment variables manually..."
+            GITHUB_REPO="git@github.com:kl63/fastapi-app.git"
+            TARGET_DIR="/var/www/fastapi-app"
+            APP_NAME="fastapi-app"
 
-      echo "Running deploy script..."
-      python scripts/deploy.py || echo "Migration failed, continuing..."
+            echo "Checking if project directory exists..."
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+              echo "Cloning project repository..."
+              git clone "$GITHUB_REPO" "$TARGET_DIR"
+            fi
 
-      echo "Checking for PM2..."
-      if ! command -v pm2 &> /dev/null; then
-        echo "Installing PM2..."
-        npm install -g pm2
-      fi
+            echo "Navigating to project directory..."
+            cd "$TARGET_DIR"
 
-      echo "Restarting FastAPI app with PM2..."
-      pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
+            echo "Fetching latest code from GitHub..."
+            git fetch origin
+            git reset --hard origin/main
 
-      echo "Saving PM2 state..."
-      pm2 save
-    EOF
+            echo "Activating virtual environment..."
+            if [ ! -d "venv" ]; then
+              echo "Creating virtual environment..."
+              python3 -m venv venv
+            fi
+            source venv/bin/activate
+
+            echo "Installing dependencies..."
+            pip install --upgrade pip
+            pip install -r requirements.txt
+
+            echo "Exporting DATABASE_URL securely..."
+            export DATABASE_URL='${DATABASE_URL}'
+
+            echo "Running deploy script..."
+            python scripts/deploy.py || echo "Migration failed, continuing..."
+
+            echo "Checking for PM2..."
+            if ! command -v pm2 &> /dev/null; then
+              echo "Installing PM2..."
+              npm install -g pm2
+            fi
+
+            echo "Restarting FastAPI app with PM2..."
+            pm2 restart $APP_NAME || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name $APP_NAME
+
+            echo "Saving PM2 state..."
+            pm2 save
+          EOF
