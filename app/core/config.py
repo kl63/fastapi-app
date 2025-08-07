@@ -1,5 +1,4 @@
 from typing import List, Union
-import os
 from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
@@ -11,7 +10,7 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
 
     # Secret key for JWT
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "supersecretkey")  # Override in prod
+    SECRET_KEY: str = "supersecretkey"  # ⚠️ Change this in production!
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
 
@@ -32,8 +31,8 @@ class Settings(BaseSettings):
             return v
         raise ValueError(v)
 
-    # ✅ DATABASE_URL is loaded directly from environment
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./app.db")
+    # ✅ Let BaseSettings pull DATABASE_URL from environment
+    DATABASE_URL: str
 
     class Config:
         env_file = ".env"
@@ -41,5 +40,5 @@ class Settings(BaseSettings):
         extra = "ignore"
 
 
-# Create settings instance
+# Instantiate the settings object
 settings = Settings()
