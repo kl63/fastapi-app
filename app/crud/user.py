@@ -91,6 +91,17 @@ def update_user_password(db: Session, user: User, new_password: str) -> bool:
         return False
 
 
+def delete_user(db: Session, user_id: str) -> bool:
+    """Delete user by ID"""
+    user = get_user_by_id(db, user_id=user_id)
+    if not user:
+        return False
+    
+    db.delete(user)
+    db.commit()
+    return True
+
+
 def authenticate_user(db: Session, username: str = None, email: str = None, password: str = None) -> Optional[User]:
     """Authenticate user by username/email and password"""
     user = None
