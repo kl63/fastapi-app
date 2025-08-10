@@ -5,7 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_current_active_admin, get_db
-from app.crud.user import get_user_by_id, get_users, update_user, update_user_password
+from app.crud.user import get_user_by_id, get_users, update_user, update_user_password, delete_user
 from app.models.user import User as DBUser
 from app.schemas.user import User, UserUpdate, UserProfile, UserProfileUpdate, PasswordChange
 from app.core.security import verify_password
@@ -158,3 +158,37 @@ def update_user_by_id(
     
     user = update_user(db, db_user=user, user_in=user_in)
     return user
+
+
+@router.delete("/{user_id}")
+def delete_user_by_id(
+    *,
+    db: Session = Depends(get_db),
+    user_id: str,
+    current_user: DBUser = Depends(get_current_active_admin),
+) -> Any:
+    """
+    Delete a user. Admin only.
+    """
+    user = get_user_by_id(db, user_id=user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Prevent admin from deleting themselves
+    if user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete your own account"
+        )
+    
+    success = delete_user(db, user_id=user_id)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete user"
+        )
+    
+    return {"message": "User deleted successfully"}
