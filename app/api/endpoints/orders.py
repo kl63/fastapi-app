@@ -11,6 +11,10 @@ from app.models.user import User as DBUser
 from app.schemas.order import (
     Order, OrderCreate, OrderStatusUpdate, OrderStatus
 )
+from app.schemas.payment import (
+    PaymentIntentCreate, PaymentIntentResponse, OrderPaymentCreate, OrderPaymentResponse
+)
+from app.services.stripe_service import StripeService
 
 router = APIRouter()
 
@@ -151,3 +155,210 @@ def update_order_status_endpoint(
         )
     
     return {"message": "Order status updated successfully"}
+
+
+# Stripe Payment Integration Endpoints
+
+@router.post("/create-payment-intent", response_model=PaymentIntentResponse)
+def create_payment_intent(
+    *,
+    db: Session = Depends(get_db),
+    payment_data: PaymentIntentCreate,
+    current_user: DBUser = Depends(get_current_user),
+) -> Any:
+    """
+    Create a Stripe payment intent for order payment
+    """
+    try:
+        # Add user information to metadata
+        metadata = payment_data.metadata or {}
+        metadata.update({
+            "user_id": current_user.id,
+            "user_email": current_user.email
+        })
+        
+        payment_intent = StripeService.create_payment_intent(
+            amount=payment_data.amount,
+            currency=payment_data.currency,
+            customer_id=payment_data.customer_id,
+            payment_method_id=payment_data.payment_method_id,
+            metadata=metadata
+        )
+        
+        return PaymentIntentResponse(
+            id=payment_intent["id"],
+            client_secret=payment_intent["client_secret"],
+            status=payment_intent["status"],
+            amount=payment_intent["amount"],
+            currency=payment_intent["currency"],
+            metadata=payment_intent.get("metadata")
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create payment intent: {str(e)}"
+        )
+
+
+@router.post("/create-order-with-payment", response_model=OrderPaymentResponse)
+def create_order_with_payment(
+    *,
+    db: Session = Depends(get_db),
+    order_payment_data: OrderPaymentCreate,
+    current_user: DBUser = Depends(get_current_user),
+) -> Any:
+    """
+    Create an order and associated payment intent
+    """
+    try:
+        # First create the order (without payment processing)
+        order_create = OrderCreate(
+            shipping_address_id=order_payment_data.shipping_address_id,
+            billing_address_id=order_payment_data.billing_address_id,
+            notes=order_payment_data.notes
+        )
+        
+        order = create_order(db, user_id=current_user.id, order_in=order_create)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not create order. Please check your cart and address."
+            )
+        
+        # Create payment intent for the order
+        metadata = {
+            "order_id": order.id,
+            "user_id": current_user.id,
+            "user_email": current_user.email
+        }
+        
+        payment_intent = StripeService.create_payment_intent(
+            amount=float(order.total_amount),
+            currency="usd",
+            payment_method_id=order_payment_data.payment_method_id,
+            metadata=metadata
+        )
+        
+        # TODO: Store payment_intent_id in order or payment table
+        # This would require updating the order model to include payment_intent_id
+        
+        return OrderPaymentResponse(
+            order_id=order.id,
+            payment_intent_id=payment_intent["id"],
+            client_secret=payment_intent["client_secret"],
+            amount=float(order.total_amount),
+            status=payment_intent["status"]
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to create order with payment: {str(e)}"
+        )
+
+
+@router.post("/confirm-payment/{order_id}")
+def confirm_order_payment(
+    *,
+    db: Session = Depends(get_db),
+    order_id: str,
+    payment_intent_id: str,
+    current_user: DBUser = Depends(get_current_user),
+) -> Any:
+    """
+    Confirm payment for an order
+    """
+    try:
+        # Verify order belongs to user
+        order = get_order(db, order_id=order_id, user_id=current_user.id)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        
+        # Retrieve payment intent status
+        payment_intent = StripeService.retrieve_payment_intent(payment_intent_id)
+        
+        if payment_intent["status"] == "succeeded":
+            # Update order status to confirmed
+            update_order_status(
+                db, 
+                order_id=order_id, 
+                status=OrderStatus.CONFIRMED,
+                notes="Payment confirmed via Stripe"
+            )
+            
+            return {
+                "message": "Payment confirmed successfully",
+                "order_id": order_id,
+                "payment_status": payment_intent["status"]
+            }
+        else:
+            return {
+                "message": "Payment not yet completed",
+                "order_id": order_id,
+                "payment_status": payment_intent["status"]
+            }
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to confirm payment: {str(e)}"
+        )
+
+
+@router.post("/refund/{order_id}")
+def refund_order(
+    *,
+    db: Session = Depends(get_db),
+    order_id: str,
+    payment_intent_id: str,
+    refund_amount: Optional[float] = None,
+    current_user: DBUser = Depends(get_current_active_admin),
+) -> Any:
+    """
+    Process refund for an order (admin only)
+    """
+    try:
+        # Verify order exists
+        order = get_order(db, order_id=order_id)
+        if not order:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Order not found"
+            )
+        
+        # Create refund in Stripe
+        refund = StripeService.create_refund(
+            payment_intent_id=payment_intent_id,
+            amount=refund_amount
+        )
+        
+        if refund["status"] == "succeeded":
+            # Update order status
+            update_order_status(
+                db,
+                order_id=order_id,
+                status=OrderStatus.REFUNDED,
+                notes=f"Refund processed: {refund['id']}"
+            )
+            
+            return {
+                "message": "Refund processed successfully",
+                "refund_id": refund["id"],
+                "amount": refund["amount"] / 100,  # Convert from cents
+                "status": refund["status"]
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Refund failed with status: {refund['status']}"
+            )
+            
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to process refund: {str(e)}"
+        )

@@ -33,6 +33,11 @@ class Settings(BaseSettings):
 
     # ✅ Let BaseSettings pull DATABASE_URL from environment
     DATABASE_URL: str
+    
+    # Stripe settings
+    STRIPE_PUBLISHABLE_KEY: str = "pk_test_..."
+    STRIPE_SECRET_KEY: str = "sk_test_..."
+    STRIPE_WEBHOOK_SECRET: str = "whsec_..."
 
     class Config:
         env_file = ".env"

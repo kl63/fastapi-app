@@ -51,7 +51,8 @@ class OrderBase(BaseModel):
 
 class OrderCreate(OrderBase):
     """Schema for creating order"""
-    pass
+    payment_method_id: Optional[str] = None
+    save_payment_method: bool = False
 
 
 class OrderInDBBase(OrderBase):
@@ -78,6 +79,8 @@ class Order(OrderInDBBase):
     shipping_address: Optional[Dict[str, Any]] = None
     billing_address: Optional[Dict[str, Any]] = None
     status_history: Optional[List[Dict[str, Any]]] = []
+    payment_intent_id: Optional[str] = None
+    payment_status: Optional[str] = None
 
 
 class OrderInDB(OrderInDBBase):
