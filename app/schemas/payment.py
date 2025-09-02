@@ -2,7 +2,7 @@
 Payment schemas for Stripe integration
 """
 from typing import Optional, Dict, Any
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from enum import Enum
 
 
@@ -22,6 +22,18 @@ class PaymentMethodType(str, Enum):
     PAYPAL = "paypal"
     APPLE_PAY = "apple_pay"
     GOOGLE_PAY = "google_pay"
+
+
+class PaymentCreate(BaseModel):
+    """Schema for creating a payment"""
+    order_id: Optional[str] = None
+    amount: float
+    currency: str = "USD"
+    payment_method_id: Optional[str] = None
+    provider: str = "stripe"  # Changed from processor for consistency
+    status: Optional[PaymentStatus] = PaymentStatus.PENDING
+    transaction_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class PaymentIntentCreate(BaseModel):
@@ -65,10 +77,25 @@ class StripeCustomerResponse(BaseModel):
 
 
 class PaymentMethodCreate(BaseModel):
-    """Schema for creating a payment method"""
-    type: PaymentMethodType = PaymentMethodType.CARD
+    """
+    Schema for creating a payment method
+    """
+    type: str = Field(..., description="Type of payment method (card, paypal, etc.)")
+    provider: str = Field("stripe", description="Payment provider (stripe, paypal, etc.)")
+    
+    # Card details
+    last_four_digits: Optional[str] = None
+    expiry_month: Optional[str] = None
+    expiry_year: Optional[str] = None
+    cardholder_name: Optional[str] = None
+    
+    # For API integration
     card_token: Optional[str] = None
-    customer_id: Optional[str] = None
+    external_id: Optional[str] = None
+    is_default: bool = False
+    
+    # Optional metadata
+    payment_metadata: Optional[Dict[str, Any]] = None
 
 
 class PaymentMethodResponse(BaseModel):

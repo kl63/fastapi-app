@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.endpoints import auth, users, categories, products, cart, wishlist, orders, addresses, reviews, coupons, notifications, webhooks
+from app.api.endpoints import auth, users, categories, products, cart, wishlist, orders, addresses, reviews, coupons, notifications, webhooks, payment_methods, payment_processing
 
 api_router = APIRouter()
 
@@ -17,3 +17,5 @@ api_router.include_router(reviews.router, prefix="/reviews", tags=["Reviews"])
 api_router.include_router(coupons.router, prefix="/coupons", tags=["Coupons"])
 api_router.include_router(notifications.router, prefix="/notifications", tags=["Notifications"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks"])
+api_router.include_router(payment_methods.router, prefix="/payment-methods", tags=["Payment Methods"])
+api_router.include_router(payment_processing.router, prefix="/payments", tags=["Payment Processing"])

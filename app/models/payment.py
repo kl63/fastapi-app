@@ -25,6 +25,9 @@ class PaymentMethod(Base):
     # External payment method ID (from payment processor)
     external_id = Column(String, nullable=True)
     
+    # Additional metadata (like Stripe customer ID)
+    payment_metadata = Column(JSON, nullable=True)
+    
     # Status
     is_default = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)

@@ -24,7 +24,8 @@ class StripeService:
         currency: str = "usd",
         customer_id: Optional[str] = None,
         payment_method_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
+        return_url: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Create a Stripe Payment Intent
@@ -35,6 +36,7 @@ class StripeService:
             customer_id: Stripe customer ID
             payment_method_id: Stripe payment method ID
             metadata: Additional metadata to attach to the payment intent
+            return_url: URL to redirect after payment completion
             
         Returns:
             Payment intent object
@@ -46,17 +48,27 @@ class StripeService:
             payment_intent_data = {
                 "amount": amount_cents,
                 "currency": currency,
-                "automatic_payment_methods": {
-                    "enabled": True,
-                },
             }
             
-            if customer_id:
-                payment_intent_data["customer"] = customer_id
-                
+            # If we're using a saved payment method, don't enable automatic methods
             if payment_method_id:
                 payment_intent_data["payment_method"] = payment_method_id
                 payment_intent_data["confirm"] = True
+                payment_intent_data["off_session"] = True  # Since we're using a saved method
+                # Prevent the need for authentication
+                payment_intent_data["confirmation_method"] = "automatic"
+            else:
+                # Only use automatic payment methods for new payment methods
+                payment_intent_data["automatic_payment_methods"] = {
+                    "enabled": True,
+                    "allow_redirects": "never"
+                }
+            
+            if customer_id:
+                payment_intent_data["customer"] = customer_id
+            
+            if return_url:
+                payment_intent_data["return_url"] = return_url
                 
             if metadata:
                 payment_intent_data["metadata"] = metadata
@@ -133,14 +145,22 @@ class StripeService:
             Payment method object
         """
         try:
-            payment_method_data = {"type": type}
+            if type == "card" and card_token:
+                # For tokens, we need to use the token parameter directly
+                # instead of nesting it under card
+                payment_method = stripe.PaymentMethod.create(
+                    type="card",
+                    card={
+                        "token": card_token
+                    }
+                )
+            else:
+                # Standard payment method creation without token
+                payment_method_data = {"type": type}
+                payment_method = stripe.PaymentMethod.create(**payment_method_data)
             
-            if card_token:
-                payment_method_data["card"] = {"token": card_token}
-            
-            payment_method = stripe.PaymentMethod.create(**payment_method_data)
-            
-            if customer_id:
+            # Attach to customer if provided
+            if customer_id and payment_method:
                 payment_method.attach(customer=customer_id)
             
             return payment_method
@@ -202,6 +222,23 @@ class StripeService:
             
             refund = stripe.Refund.create(**refund_data)
             return refund
+        except stripe.error.StripeError as e:
+            raise Exception(f"Stripe error: {str(e)}")
+    
+    @staticmethod
+    def retrieve_payment_method(payment_method_id: str) -> Dict[str, Any]:
+        """
+        Retrieve a payment method by ID
+        
+        Args:
+            payment_method_id: The payment method ID
+            
+        Returns:
+            Payment method object
+        """
+        try:
+            payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+            return payment_method
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe error: {str(e)}")
     
