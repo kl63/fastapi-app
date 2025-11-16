@@ -148,6 +148,9 @@ def create_order(db: Session, user_id: str, order_in: OrderCreate) -> Optional[O
         
     except Exception as e:
         db.rollback()
+        print(f"❌ Order creation error: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
