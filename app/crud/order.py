@@ -91,13 +91,16 @@ def create_order(db: Session, user_id: str, order_in: OrderCreate) -> Optional[O
         order_id = str(uuid.uuid4())
         order_number = generate_order_number()
         
+        # Default billing address to shipping address if not provided
+        billing_addr_id = order_in.billing_address_id or order_in.shipping_address_id
+        
         db_order = Order(
             id=order_id,
             user_id=user_id,
             order_number=order_number,
             status=OrderStatus.PENDING,
             delivery_address_id=order_in.shipping_address_id,  # Use delivery_address_id (actual column)
-            billing_address_id=order_in.billing_address_id,
+            billing_address_id=billing_addr_id,  # Default to shipping address if not provided
             subtotal=subtotal,
             tax_amount=tax_amount,
             delivery_fee=shipping_cost,  # Use delivery_fee (actual column)
