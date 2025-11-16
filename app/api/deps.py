@@ -37,21 +37,28 @@ def get_current_user(
         HTTPException: If authentication fails
     """
     try:
-        # Decode the JWT token
+        # Decode the JWT token (will automatically check expiration)
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         token_data = TokenPayload(**payload)
         
-        # Check if token is expired
-        if token_data.exp is None:
+        # Validate that we have a user ID in the token
+        if token_data.sub is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
             
-    except (JWTError, ValidationError):
+    except JWTError as e:
+        # JWT errors include expiration checks
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except ValidationError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

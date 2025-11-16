@@ -1,5 +1,6 @@
 """
-Stripe webhook endpoints for handling payment events
+Stripe Webhook Handler
+Receives and processes payment events from Stripe
 """
 from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status, Request
@@ -20,9 +21,18 @@ async def stripe_webhook(
 ) -> Any:
     """
     Handle Stripe webhook events
+    
+    This endpoint receives notifications from Stripe about payment events:
+    - payment_intent.succeeded: Payment completed successfully
+    - payment_intent.payment_failed: Payment failed
+    - payment_intent.canceled: Payment canceled
+    - charge.refunded: Refund processed
+    
+    IMPORTANT: Configure this webhook URL in your Stripe Dashboard:
+    https://dashboard.stripe.com/webhooks
     """
     try:
-        # Get the raw payload and signature
+        # Get raw payload and signature
         payload = await request.body()
         sig_header = request.headers.get("stripe-signature")
         
@@ -32,26 +42,29 @@ async def stripe_webhook(
                 detail="Missing Stripe signature header"
             )
         
-        # Construct and verify the webhook event
+        # Verify webhook signature and construct event
         event = StripeService.construct_webhook_event(payload, sig_header)
         
         # Handle different event types
-        if event["type"] == "payment_intent.succeeded":
-            await handle_payment_succeeded(db, event["data"]["object"])
+        event_type = event["type"]
+        event_data = event["data"]["object"]
+        
+        if event_type == "payment_intent.succeeded":
+            await handle_payment_succeeded(db, event_data)
             
-        elif event["type"] == "payment_intent.payment_failed":
-            await handle_payment_failed(db, event["data"]["object"])
+        elif event_type == "payment_intent.payment_failed":
+            await handle_payment_failed(db, event_data)
             
-        elif event["type"] == "payment_intent.canceled":
-            await handle_payment_canceled(db, event["data"]["object"])
+        elif event_type == "payment_intent.canceled":
+            await handle_payment_canceled(db, event_data)
             
-        elif event["type"] == "charge.dispute.created":
-            await handle_chargeback_created(db, event["data"]["object"])
+        elif event_type == "charge.refunded":
+            await handle_refund(db, event_data)
             
         else:
-            print(f"Unhandled event type: {event['type']}")
+            print(f"Unhandled event type: {event_type}")
         
-        return {"status": "success"}
+        return {"status": "success", "event_type": event_type}
         
     except Exception as e:
         raise HTTPException(
@@ -62,7 +75,8 @@ async def stripe_webhook(
 
 async def handle_payment_succeeded(db: Session, payment_intent: dict) -> None:
     """
-    Handle successful payment
+    Handle successful payment event
+    Automatically confirms the order when payment succeeds
     """
     try:
         metadata = payment_intent.get("metadata", {})
@@ -73,40 +87,42 @@ async def handle_payment_succeeded(db: Session, payment_intent: dict) -> None:
             update_order_status(
                 db,
                 order_id=order_id,
-                status=OrderStatus.CONFIRMED,
-                notes=f"Payment succeeded: {payment_intent['id']}"
+                new_status=OrderStatus.CONFIRMED,
+                notes=f"✅ Payment succeeded (webhook). PaymentIntent: {payment_intent['id']}"
             )
-            print(f"Order {order_id} confirmed after successful payment")
+            print(f"✅ Order {order_id} confirmed after successful payment")
             
     except Exception as e:
-        print(f"Error handling payment success: {str(e)}")
+        print(f"❌ Error handling payment success: {str(e)}")
 
 
 async def handle_payment_failed(db: Session, payment_intent: dict) -> None:
     """
-    Handle failed payment
+    Handle failed payment event
     """
     try:
         metadata = payment_intent.get("metadata", {})
         order_id = metadata.get("order_id")
         
         if order_id:
-            # Update order status to cancelled
-            update_order_status(
-                db,
-                order_id=order_id,
-                status=OrderStatus.CANCELLED,
-                notes=f"Payment failed: {payment_intent['id']}"
-            )
-            print(f"Order {order_id} cancelled due to payment failure")
+            # Update order with failure note
+            order = get_order(db, order_id=order_id)
+            if order and order.status == OrderStatus.PENDING:
+                update_order_status(
+                    db,
+                    order_id=order_id,
+                    new_status=OrderStatus.CANCELLED,
+                    notes=f"❌ Payment failed (webhook). PaymentIntent: {payment_intent['id']}"
+                )
+                print(f"❌ Order {order_id} canceled due to payment failure")
             
     except Exception as e:
-        print(f"Error handling payment failure: {str(e)}")
+        print(f"❌ Error handling payment failure: {str(e)}")
 
 
 async def handle_payment_canceled(db: Session, payment_intent: dict) -> None:
     """
-    Handle canceled payment
+    Handle canceled payment event
     """
     try:
         metadata = payment_intent.get("metadata", {})
@@ -114,29 +130,32 @@ async def handle_payment_canceled(db: Session, payment_intent: dict) -> None:
         
         if order_id:
             # Update order status to cancelled
-            update_order_status(
-                db,
-                order_id=order_id,
-                status=OrderStatus.CANCELLED,
-                notes=f"Payment canceled: {payment_intent['id']}"
-            )
-            print(f"Order {order_id} cancelled due to payment cancellation")
+            order = get_order(db, order_id=order_id)
+            if order and order.status == OrderStatus.PENDING:
+                update_order_status(
+                    db,
+                    order_id=order_id,
+                    new_status=OrderStatus.CANCELLED,
+                    notes=f"⚠️ Payment canceled (webhook). PaymentIntent: {payment_intent['id']}"
+                )
+                print(f"⚠️ Order {order_id} canceled due to payment cancellation")
             
     except Exception as e:
-        print(f"Error handling payment cancellation: {str(e)}")
+        print(f"❌ Error handling payment cancellation: {str(e)}")
 
 
-async def handle_chargeback_created(db: Session, charge: dict) -> None:
+async def handle_refund(db: Session, charge: dict) -> None:
     """
-    Handle chargeback/dispute creation
+    Handle refund event
     """
     try:
+        # Get payment intent from charge
         payment_intent_id = charge.get("payment_intent")
         
         if payment_intent_id:
-            # You might want to implement logic to find the order by payment_intent_id
-            # and update its status or create a notification for admin review
-            print(f"Chargeback created for payment intent: {payment_intent_id}")
+            # You might want to store payment_intent_id in your order
+            # For now, just log the event
+            print(f"💰 Refund processed for PaymentIntent: {payment_intent_id}")
             
     except Exception as e:
-        print(f"Error handling chargeback: {str(e)}")
+        print(f"❌ Error handling refund: {str(e)}")

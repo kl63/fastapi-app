@@ -1,18 +1,14 @@
 """
-Stripe payment processing service
+Stripe Payment Service
+Handles all Stripe API interactions securely on the backend.
+NEVER expose secret keys to the frontend!
 """
 import stripe
 from typing import Dict, Any, Optional
-from decimal import Decimal
-
 from app.core.config import settings
 
-# Initialize Stripe with secret key (only if available)
-try:
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-except Exception:
-    # Handle case where settings are not available (e.g., during testing)
-    stripe.api_key = None
+# Initialize Stripe with secret key (backend only!)
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 class StripeService:
@@ -22,244 +18,161 @@ class StripeService:
     def create_payment_intent(
         amount: float,
         currency: str = "usd",
-        customer_id: Optional[str] = None,
-        payment_method_id: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        return_url: Optional[str] = None
+        customer_email: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Create a Stripe Payment Intent
+        Create a PaymentIntent for processing payment
         
         Args:
             amount: Amount in dollars (will be converted to cents)
             currency: Currency code (default: usd)
-            customer_id: Stripe customer ID
-            payment_method_id: Stripe payment method ID
-            metadata: Additional metadata to attach to the payment intent
-            return_url: URL to redirect after payment completion
+            metadata: Optional metadata (order_id, user_id, etc.)
+            customer_email: Optional customer email
             
         Returns:
-            Payment intent object
+            PaymentIntent object with client_secret for frontend
         """
         try:
-            # Convert amount to cents (Stripe expects amounts in smallest currency unit)
+            # Convert amount to cents (Stripe uses smallest currency unit)
             amount_cents = int(amount * 100)
             
-            payment_intent_data = {
+            # Create payment intent parameters
+            params = {
                 "amount": amount_cents,
                 "currency": currency,
+                "automatic_payment_methods": {
+                    "enabled": True,
+                },
             }
             
-            # If we're using a saved payment method, don't enable automatic methods
-            if payment_method_id:
-                payment_intent_data["payment_method"] = payment_method_id
-                payment_intent_data["confirm"] = True
-                payment_intent_data["off_session"] = True  # Since we're using a saved method
-                # Prevent the need for authentication
-                payment_intent_data["confirmation_method"] = "automatic"
-            else:
-                # Only use automatic payment methods for new payment methods
-                payment_intent_data["automatic_payment_methods"] = {
-                    "enabled": True,
-                    "allow_redirects": "never"
-                }
-            
-            if customer_id:
-                payment_intent_data["customer"] = customer_id
-            
-            if return_url:
-                payment_intent_data["return_url"] = return_url
-                
+            # Add optional parameters
             if metadata:
-                payment_intent_data["metadata"] = metadata
-            
-            payment_intent = stripe.PaymentIntent.create(**payment_intent_data)
-            return payment_intent
-            
-        except stripe.error.StripeError as e:
-            raise Exception(f"Stripe error: {str(e)}")
-    
-    @staticmethod
-    def confirm_payment_intent(payment_intent_id: str, payment_method_id: str) -> Dict[str, Any]:
-        """
-        Confirm a payment intent with a payment method
-        
-        Args:
-            payment_intent_id: The payment intent ID
-            payment_method_id: The payment method ID
-            
-        Returns:
-            Confirmed payment intent object
-        """
-        try:
-            payment_intent = stripe.PaymentIntent.confirm(
-                payment_intent_id,
-                payment_method=payment_method_id
-            )
-            return payment_intent
-        except stripe.error.StripeError as e:
-            raise Exception(f"Stripe error: {str(e)}")
-    
-    @staticmethod
-    def create_customer(email: str, name: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Create a Stripe customer
-        
-        Args:
-            email: Customer email
-            name: Customer name
-            metadata: Additional metadata
-            
-        Returns:
-            Customer object
-        """
-        try:
-            customer_data = {"email": email}
-            
-            if name:
-                customer_data["name"] = name
+                params["metadata"] = metadata
+            if customer_email:
+                params["receipt_email"] = customer_email
                 
-            if metadata:
-                customer_data["metadata"] = metadata
+            # Create the payment intent
+            payment_intent = stripe.PaymentIntent.create(**params)
             
-            customer = stripe.Customer.create(**customer_data)
-            return customer
-        except stripe.error.StripeError as e:
-            raise Exception(f"Stripe error: {str(e)}")
-    
-    @staticmethod
-    def create_payment_method(
-        type: str = "card",
-        card_token: Optional[str] = None,
-        customer_id: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Create a payment method
-        
-        Args:
-            type: Payment method type (default: card)
-            card_token: Card token from frontend
-            customer_id: Customer to attach the payment method to
+            return {
+                "id": payment_intent.id,
+                "client_secret": payment_intent.client_secret,
+                "amount": payment_intent.amount,
+                "currency": payment_intent.currency,
+                "status": payment_intent.status,
+            }
             
-        Returns:
-            Payment method object
-        """
-        try:
-            if type == "card" and card_token:
-                # For tokens, we need to use the token parameter directly
-                # instead of nesting it under card
-                payment_method = stripe.PaymentMethod.create(
-                    type="card",
-                    card={
-                        "token": card_token
-                    }
-                )
-            else:
-                # Standard payment method creation without token
-                payment_method_data = {"type": type}
-                payment_method = stripe.PaymentMethod.create(**payment_method_data)
-            
-            # Attach to customer if provided
-            if customer_id and payment_method:
-                payment_method.attach(customer=customer_id)
-            
-            return payment_method
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe error: {str(e)}")
     
     @staticmethod
     def retrieve_payment_intent(payment_intent_id: str) -> Dict[str, Any]:
         """
-        Retrieve a payment intent by ID
+        Retrieve a PaymentIntent to check its status
         
         Args:
-            payment_intent_id: The payment intent ID
+            payment_intent_id: The PaymentIntent ID
             
         Returns:
-            Payment intent object
+            PaymentIntent details
         """
         try:
             payment_intent = stripe.PaymentIntent.retrieve(payment_intent_id)
-            return payment_intent
+            return {
+                "id": payment_intent.id,
+                "status": payment_intent.status,
+                "amount": payment_intent.amount,
+                "currency": payment_intent.currency,
+                "metadata": payment_intent.metadata,
+            }
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe error: {str(e)}")
     
     @staticmethod
     def cancel_payment_intent(payment_intent_id: str) -> Dict[str, Any]:
         """
-        Cancel a payment intent
+        Cancel a PaymentIntent
         
         Args:
-            payment_intent_id: The payment intent ID
+            payment_intent_id: The PaymentIntent ID
             
         Returns:
-            Cancelled payment intent object
+            Canceled PaymentIntent details
         """
         try:
             payment_intent = stripe.PaymentIntent.cancel(payment_intent_id)
-            return payment_intent
+            return {
+                "id": payment_intent.id,
+                "status": payment_intent.status,
+            }
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe error: {str(e)}")
     
     @staticmethod
-    def create_refund(payment_intent_id: str, amount: Optional[float] = None) -> Dict[str, Any]:
+    def create_refund(
+        payment_intent_id: str,
+        amount: Optional[float] = None,
+        reason: Optional[str] = None
+    ) -> Dict[str, Any]:
         """
-        Create a refund for a payment intent
+        Create a refund for a payment
         
         Args:
-            payment_intent_id: The payment intent ID
-            amount: Amount to refund in dollars (optional, defaults to full amount)
+            payment_intent_id: The PaymentIntent ID
+            amount: Optional partial refund amount in dollars
+            reason: Optional reason for refund
             
         Returns:
-            Refund object
+            Refund details
         """
         try:
-            refund_data = {"payment_intent": payment_intent_id}
+            params = {"payment_intent": payment_intent_id}
             
             if amount:
-                # Convert amount to cents
-                refund_data["amount"] = int(amount * 100)
+                params["amount"] = int(amount * 100)  # Convert to cents
+            if reason:
+                params["reason"] = reason
+                
+            refund = stripe.Refund.create(**params)
             
-            refund = stripe.Refund.create(**refund_data)
-            return refund
-        except stripe.error.StripeError as e:
-            raise Exception(f"Stripe error: {str(e)}")
-    
-    @staticmethod
-    def retrieve_payment_method(payment_method_id: str) -> Dict[str, Any]:
-        """
-        Retrieve a payment method by ID
-        
-        Args:
-            payment_method_id: The payment method ID
-            
-        Returns:
-            Payment method object
-        """
-        try:
-            payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
-            return payment_method
+            return {
+                "id": refund.id,
+                "amount": refund.amount / 100,  # Convert back to dollars
+                "status": refund.status,
+                "payment_intent": refund.payment_intent,
+            }
         except stripe.error.StripeError as e:
             raise Exception(f"Stripe error: {str(e)}")
     
     @staticmethod
     def construct_webhook_event(payload: bytes, sig_header: str) -> Dict[str, Any]:
         """
-        Construct and verify a webhook event
+        Verify and construct webhook event from Stripe
         
         Args:
-            payload: Raw request payload
-            sig_header: Stripe signature header
+            payload: Raw request body
+            sig_header: Stripe-Signature header
             
         Returns:
-            Webhook event object
+            Verified webhook event
         """
         try:
             event = stripe.Webhook.construct_event(
                 payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
             )
             return event
-        except ValueError as e:
-            raise Exception(f"Invalid payload: {str(e)}")
-        except stripe.error.SignatureVerificationError as e:
-            raise Exception(f"Invalid signature: {str(e)}")
+        except ValueError:
+            raise Exception("Invalid payload")
+        except stripe.error.SignatureVerificationError:
+            raise Exception("Invalid signature")
+    
+    @staticmethod
+    def get_publishable_key() -> str:
+        """
+        Get Stripe publishable key (safe to expose to frontend)
+        
+        Returns:
+            Publishable key
+        """
+        return settings.STRIPE_PUBLISHABLE_KEY

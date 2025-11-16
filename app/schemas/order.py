@@ -19,7 +19,9 @@ class OrderItemBase(BaseModel):
     """Base order item schema"""
     product_id: str
     quantity: int
-    price: float
+    unit_price: float  # Matches database column
+    product_name: str
+    product_sku: str
 
 
 class OrderItemCreate(OrderItemBase):
@@ -31,6 +33,10 @@ class OrderItemInDBBase(OrderItemBase):
     """Base order item schema for DB"""
     id: str
     order_id: str
+    total_price: float
+    product_image: Optional[str] = None
+    product_weight: Optional[str] = None
+    product_unit: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -38,21 +44,21 @@ class OrderItemInDBBase(OrderItemBase):
 
 class OrderItem(OrderItemInDBBase):
     """Order item response schema"""
-    total_price: Optional[float] = None
-    product: Optional[Dict[str, Any]] = None
+    # Exclude relationships to avoid serialization issues
+    class Config:
+        from_attributes = True
 
 
 class OrderBase(BaseModel):
     """Base order schema"""
-    shipping_address_id: str
+    shipping_address_id: Optional[str] = None
     billing_address_id: Optional[str] = None
     notes: Optional[str] = None
 
 
 class OrderCreate(OrderBase):
     """Schema for creating order"""
-    payment_method_id: Optional[str] = None
-    save_payment_method: bool = False
+    pass
 
 
 class OrderInDBBase(OrderBase):
@@ -63,7 +69,7 @@ class OrderInDBBase(OrderBase):
     status: OrderStatus
     subtotal: float
     tax_amount: float
-    shipping_cost: float
+    delivery_fee: float  # Matches database column
     discount_amount: float
     total_amount: float
     created_at: datetime
@@ -76,11 +82,9 @@ class OrderInDBBase(OrderBase):
 class Order(OrderInDBBase):
     """Order response schema"""
     items: List[OrderItem] = []
-    shipping_address: Optional[Dict[str, Any]] = None
-    billing_address: Optional[Dict[str, Any]] = None
-    status_history: Optional[List[Dict[str, Any]]] = []
-    payment_intent_id: Optional[str] = None
-    payment_status: Optional[str] = None
+    # Exclude relationships to avoid serialization issues
+    class Config:
+        from_attributes = True
 
 
 class OrderInDB(OrderInDBBase):

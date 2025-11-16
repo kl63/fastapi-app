@@ -34,10 +34,10 @@ class Settings(BaseSettings):
     # ✅ Let BaseSettings pull DATABASE_URL from environment
     DATABASE_URL: str
     
-    # Stripe settings
-    STRIPE_PUBLISHABLE_KEY: str = "pk_test_..."
-    STRIPE_SECRET_KEY: str = "sk_test_..."
-    STRIPE_WEBHOOK_SECRET: str = "whsec_..."
+    # Stripe Configuration (Backend Only - NEVER expose secret key to frontend)
+    STRIPE_SECRET_KEY: str = ""  # Required: Set in .env file
+    STRIPE_PUBLISHABLE_KEY: str = ""  # Optional: For reference, safe to expose to frontend
+    STRIPE_WEBHOOK_SECRET: str = ""  # Required: For webhook signature verification
 
     class Config:
         env_file = ".env"

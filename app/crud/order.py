@@ -61,13 +61,15 @@ def create_order(db: Session, user_id: str, order_in: OrderCreate) -> Optional[O
         if not cart_items:
             return None
         
-        # Validate addresses
-        shipping_address = db.query(Address).filter(
-            Address.id == order_in.shipping_address_id,
-            Address.user_id == user_id
-        ).first()
-        if not shipping_address:
-            return None
+        # Validate addresses (optional - can be added later at checkout)
+        shipping_address = None
+        if order_in.shipping_address_id:
+            shipping_address = db.query(Address).filter(
+                Address.id == order_in.shipping_address_id,
+                Address.user_id == user_id
+            ).first()
+            if not shipping_address:
+                return None  # If ID provided but invalid, return error
         
         billing_address = None
         if order_in.billing_address_id:
@@ -94,11 +96,11 @@ def create_order(db: Session, user_id: str, order_in: OrderCreate) -> Optional[O
             user_id=user_id,
             order_number=order_number,
             status=OrderStatus.PENDING,
-            shipping_address_id=order_in.shipping_address_id,
+            delivery_address_id=order_in.shipping_address_id,  # Use delivery_address_id (actual column)
             billing_address_id=order_in.billing_address_id,
             subtotal=subtotal,
             tax_amount=tax_amount,
-            shipping_cost=shipping_cost,
+            delivery_fee=shipping_cost,  # Use delivery_fee (actual column)
             discount_amount=discount_amount,
             total_amount=total_amount,
             notes=order_in.notes,
@@ -109,12 +111,21 @@ def create_order(db: Session, user_id: str, order_in: OrderCreate) -> Optional[O
         # Create order items from cart items
         for cart_item in cart_items:
             order_item_id = str(uuid.uuid4())
+            # Get product details for snapshot
+            product = cart_item.product
+            
             db_order_item = OrderItem(
                 id=order_item_id,
                 order_id=order_id,
                 product_id=cart_item.product_id,
+                product_name=product.name if product else "Unknown Product",
+                product_sku=product.sku if product else "N/A",
                 quantity=cart_item.quantity,
-                price=cart_item.price_at_time,
+                unit_price=cart_item.price_at_time,
+                total_price=cart_item.price_at_time * cart_item.quantity,
+                product_image=product.image_url if product and hasattr(product, 'image_url') else None,
+                product_weight=product.weight if product and hasattr(product, 'weight') else None,
+                product_unit=product.unit if product and hasattr(product, 'unit') else None,
             )
             db.add(db_order_item)
         

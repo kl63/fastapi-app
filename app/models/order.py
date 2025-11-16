@@ -16,9 +16,18 @@ class Order(Base):
     # Order status
     status = Column(String, nullable=False, default="pending")  # pending, confirmed, preparing, out_for_delivery, delivered, cancelled
     
-    # Addresses
-    delivery_address_id = Column(String, ForeignKey("address.id"), nullable=False)
-    billing_address_id = Column(String, ForeignKey("address.id"), nullable=False)
+    # Addresses (optional - can be added at checkout)
+    delivery_address_id = Column(String, ForeignKey("address.id"), nullable=True)
+    billing_address_id = Column(String, ForeignKey("address.id"), nullable=True)
+    
+    # Alias for compatibility with schemas
+    @property  
+    def shipping_address_id(self):
+        return self.delivery_address_id
+    
+    @shipping_address_id.setter
+    def shipping_address_id(self, value):
+        self.delivery_address_id = value
     
     # Pricing
     subtotal = Column(Float, nullable=False)
@@ -58,13 +67,23 @@ class Order(Base):
     delivery_address = relationship("Address", foreign_keys=[delivery_address_id], back_populates="delivery_orders")
     billing_address = relationship("Address", foreign_keys=[billing_address_id], back_populates="billing_orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-    payments = relationship("Payment", back_populates="order")
     status_history = relationship("OrderStatusHistory", back_populates="order", cascade="all, delete-orphan")
     
     @property
     def item_count(self):
         """Get total number of items in order"""
         return sum(item.quantity for item in self.items)
+    
+    # Alias for schema compatibility
+    @property
+    def shipping_cost(self):
+        """Alias for delivery_fee (for schema compatibility)"""
+        return self.delivery_fee
+    
+    @property
+    def shipping_address(self):
+        """Alias for delivery_address (for schema compatibility)"""
+        return self.delivery_address
     
     def __repr__(self):
         return f"<Order {self.order_number}>"

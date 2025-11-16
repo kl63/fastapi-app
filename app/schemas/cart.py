@@ -34,7 +34,10 @@ class CartItemInDBBase(CartItemBase):
 class CartItem(CartItemInDBBase):
     """Cart item response schema"""
     total_price: Optional[float] = None
-    product: Optional[Dict[str, Any]] = None
+    # Exclude product relationship to avoid serialization issues
+    
+    class Config:
+        from_attributes = True
 
 
 class CartItemInDB(CartItemInDBBase):

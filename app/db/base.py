@@ -7,7 +7,6 @@ from app.models.product import Product
 from app.models.cart import CartItem
 from app.models.wishlist import WishlistItem
 from app.models.order import Order, OrderItem, OrderStatusHistory
-from app.models.payment import PaymentMethod, Payment
 from app.models.review import Review
 from app.models.notification import Notification
 from app.models.coupon import Coupon
