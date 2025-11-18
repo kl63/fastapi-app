@@ -59,5 +59,16 @@ class CategoryInDB(CategoryInDBBase):
     pass
 
 
+class CategorySummary(BaseModel):
+    """Category summary schema for embedding in products"""
+    id: str
+    name: str
+    slug: str
+    icon: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
 # Update forward references
 Category.model_rebuild()

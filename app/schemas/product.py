@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING, ForwardRef
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -95,7 +95,7 @@ class Product(ProductInDBBase):
     """Product response schema"""
     is_low_stock: Optional[bool] = None
     discount_percentage: Optional[float] = None
-    category: Optional[Dict[str, Any]] = None
+    category: Optional['CategorySummary'] = None
 
 
 class ProductSummary(BaseModel):
@@ -120,3 +120,8 @@ class ProductSummary(BaseModel):
 class ProductInDB(ProductInDBBase):
     """Product schema for DB operations"""
     pass
+
+
+# Import and resolve forward references
+from app.schemas.category import CategorySummary
+Product.model_rebuild()
