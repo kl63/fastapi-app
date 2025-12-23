@@ -150,39 +150,3 @@ def login_access_token(
         ),
         "token_type": "bearer",
     }
-
-
-@router.post("/register", response_model=User)
-def register_user(
-    *,
-    db: Session = Depends(get_db),
-    user_in: UserCreate,
-) -> Any:
-    """
-    Register a new user
-    """
-    # Check if user with same email exists
-    user_by_email = get_user_by_email(db, email=user_in.email)
-    if user_by_email:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-    
-    # Check if user with same username exists
-    user_by_username = get_user_by_username(db, username=user_in.username)
-    if user_by_username:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username already registered",
-        )
-    
-    # Create new user
-    user = create_user(db, user_in=user_in)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User could not be created",
-        )
-    
-    return user

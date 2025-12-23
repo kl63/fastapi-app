@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  HOST: 159.89.245.206
+  HOST: 134.122.5.11
   USERNAME: kevinlin192003
   REPO_URL: git@github.com:kl63/fastapi-app.git
   TARGET_DIR: /var/www/fastapi-app
