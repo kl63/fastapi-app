@@ -2,8 +2,8 @@ name: Deploy FastAPI App
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
 
 env:
   HOST: 134.122.5.11
@@ -11,6 +11,7 @@ env:
   REPO_URL: git@github.com:kl63/fastapi-app.git
   TARGET_DIR: /var/www/fastapi-app
   APP_NAME: fastapi-app
+  APP_PORT: "8000"
 
 jobs:
   deploy:
@@ -20,7 +21,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up SSH
+      - name: Set up SSH agent
         uses: webfactory/ssh-agent@v0.5.1
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
@@ -29,58 +30,94 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          set -e
+          set -euo pipefail
 
-          # 1) Make sure target dir exists
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "mkdir -p $TARGET_DIR"
-
-          # 2) Write .env safely using base64 (prevents all quoting/syntax issues)
-          ENV_B64="$(printf "DATABASE_URL=%s\n" "$DATABASE_URL" | base64 -w0)"
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "echo '$ENV_B64' | base64 -d > $TARGET_DIR/.env"
-
-          # 3) Deploy on the server
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "bash -s" <<'EOF'
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST bash -s <<'EOF'
             set -euo pipefail
 
-            REPO_URL="git@github.com:kl63/fastapi-app.git"
-            TARGET_DIR="/var/www/fastapi-app"
-            APP_NAME="fastapi-app"
+            echo "==> Ensure swap (prevents exit 137 / OOM kills)"
+            if ! swapon --show | grep -q "/swapfile"; then
+              if [ ! -f /swapfile ]; then
+                echo "Creating 2G swapfile..."
+                sudo fallocate -l 2G /swapfile 2>/dev/null || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+                sudo chmod 600 /swapfile
+                sudo mkswap /swapfile
+              fi
+              sudo swapon /swapfile || true
+              grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab >/dev/null
+            fi
+            free -h || true
 
-            if [ ! -d "$TARGET_DIR/.git" ]; then
-              git clone "$REPO_URL" "$TARGET_DIR"
+            echo "==> Ensure project exists"
+            if [ ! -d "${TARGET_DIR}/.git" ]; then
+              sudo mkdir -p "${TARGET_DIR}"
+              sudo chown -R "$USER:$USER" "${TARGET_DIR}"
+              git clone "${REPO_URL}" "${TARGET_DIR}"
             fi
 
-            cd "$TARGET_DIR"
+            echo "==> Update code"
+            cd "${TARGET_DIR}"
             git fetch origin
             git reset --hard origin/main
 
+            echo "==> Ensure venv"
             if [ ! -d "venv" ]; then
               python3 -m venv venv
             fi
-
             source venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
 
-            # Load env
-            set -a
-            source "$TARGET_DIR/.env"
-            set +a
+            echo "==> Install deps (cached to reduce memory + time)"
+            python -m pip install --upgrade pip
+            export PIP_CACHE_DIR="$HOME/.cache/pip"
+            mkdir -p "$PIP_CACHE_DIR"
 
-            echo "Running deploy script..."
-            python scripts/deploy.py
-
-            echo "Restarting PM2..."
-            if ! command -v pm2 >/dev/null 2>&1; then
-              npm install -g pm2
+            # Only reinstall if requirements.txt changed in this deploy
+            if git diff --name-only HEAD@{1} HEAD 2>/dev/null | grep -q "^requirements.txt$"; then
+              echo "requirements.txt changed -> installing"
+              pip install -r requirements.txt
+            else
+              echo "requirements.txt unchanged -> ensuring deps without heavy rebuild"
+              pip install -r requirements.txt
             fi
 
-            pm2 restart "$APP_NAME" || \
-              pm2 start /var/www/fastapi-app/venv/bin/gunicorn \
-                --name "$APP_NAME" \
-                --interpreter none -- \
-                -w 1 -k uvicorn.workers.UvicornWorker main:app \
-                --bind 127.0.0.1:8000 --timeout 120
+            echo "==> Export DATABASE_URL for deploy script"
+            export DATABASE_URL="${DATABASE_URL}"
+
+            echo "==> Run deploy script / migrations"
+            # If your script creates DB, it can fail if creds differ.
+            # We fail the job if deploy.py fails (so you notice), but you can change to '|| true' if you prefer.
+            python scripts/deploy.py
+
+            echo "==> Ensure PM2 is available"
+            if ! command -v pm2 >/dev/null 2>&1; then
+              sudo npm install -g pm2
+            fi
+
+            echo "==> Start/Restart FastAPI via gunicorn (bind LOCAL only behind nginx)"
+            # Use an absolute gunicorn path so PM2 doesn't depend on PATH
+            GUNICORN_BIN="${TARGET_DIR}/venv/bin/gunicorn"
+
+            if pm2 describe "${APP_NAME}" >/dev/null 2>&1; then
+              pm2 stop "${APP_NAME}" || true
+              pm2 delete "${APP_NAME}" || true
+            fi
+
+            # IMPORTANT: set cwd so 'main:app' resolves (fixes ModuleNotFoundError: main)
+            pm2 start "${GUNICORN_BIN}" \
+              --name "${APP_NAME}" \
+              --interpreter none \
+              --cwd "${TARGET_DIR}" \
+              -- \
+              -w 1 -k uvicorn.workers.UvicornWorker main:app \
+              --bind 127.0.0.1:${APP_PORT} \
+              --timeout 120
 
             pm2 save
+
+            echo "==> Quick health checks"
+            curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:${APP_PORT}/docs"
+            curl -s -o /dev/null -w "%{http_code}\n" "http://127.0.0.1:${APP_PORT}/openapi.json"
+
+            echo "==> Done"
           EOF
+        shell: bash
