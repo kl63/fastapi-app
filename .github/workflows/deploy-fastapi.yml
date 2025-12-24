@@ -1,71 +1,93 @@
-name: Deploy FastAPI App
+name: Deploy FastAPI (Production)
 
 on:
   push:
-    branches:
-      - main
-
-env:
-  HOST: 134.122.5.11
-  USERNAME: kevinlin192003
-  REPO_URL: git@github.com:kl63/fastapi-app.git
-  TARGET_DIR: /var/www/fastapi-app
-  APP_NAME: fastapi-app
+    branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.5.1
+      - name: Setup SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Deploy to DigitalOcean
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Add droplet to known_hosts
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST bash -s <<EOF
-            set -e
+          mkdir -p ~/.ssh
+          ssh-keyscan -H 134.122.5.11 >> ~/.ssh/known_hosts
 
-            echo "Checking if project directory exists..."
-            if [ ! -d "${{ env.TARGET_DIR }}/.git" ]; then
-              echo "Cloning project repository..."
-              git clone "${{ env.REPO_URL }}" "${{ env.TARGET_DIR }}"
-            fi
+      - name: Deploy to droplet
+        env:
+          DROPLET_HOST: 134.122.5.11
+          DROPLET_USER: kevinlin192003
+          APP_DIR: /var/www/fastapi-app
+          PM2_APP_NAME: fastapi-app
+          DATABASE_URL_RAW: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
 
-            echo "Navigating to project directory..."
-            cd "${{ env.TARGET_DIR }}"
+          # --- sanitize DATABASE_URL from GitHub Secret (removes trailing newline / CRLF) ---
+          DATABASE_URL_CLEAN="$(printf "%s" "$DATABASE_URL_RAW" | tr -d '\r\n')"
 
-            echo "Fetching latest code..."
-            git fetch origin
+          # Safe local debug (doesn't print password)
+          python3 - <<PY
+          import urllib.parse
+          u = "${DATABASE_URL_CLEAN}"
+          p = urllib.parse.urlparse(u)
+          print("LOCAL repr(DATABASE_URL_CLEAN):", repr(u))
+          print("LOCAL repr(db path):", repr(p.path))
+          PY
+
+          ssh "${DROPLET_USER}@${DROPLET_HOST}" bash -s <<EOF
+            set -euo pipefail
+
+            cd "${APP_DIR}"
+
+            echo "== Pull latest =="
+            git fetch --all
             git reset --hard origin/main
 
-            echo "Activating virtual environment..."
+            echo "== Ensure venv =="
             if [ ! -d "venv" ]; then
               python3 -m venv venv
             fi
             source venv/bin/activate
-
-            echo "Installing dependencies..."
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Exporting DATABASE_URL..."
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            echo "== Export clean DATABASE_URL for this session =="
+            export DATABASE_URL="${DATABASE_URL_CLEAN}"
+            export DATABASE_URL="\$(printf "%s" "\$DATABASE_URL" | tr -d '\r\n')"
 
-            echo "Running deploy script..."
-            python scripts/deploy.py || echo "Migration failed, continuing..."
+            echo "== Safe debug on droplet =="
+            python3 - <<'PY'
+            import os, urllib.parse
+            u = os.environ.get("DATABASE_URL","")
+            p = urllib.parse.urlparse(u)
+            print("DROPLET repr(DATABASE_URL):", repr(u))
+            print("DROPLET repr(db path):", repr(p.path))
+            PY
 
-            echo "Restarting with PM2..."
-            if ! command -v pm2 &> /dev/null; then
-              npm install -g pm2
-            fi
-            pm2 restart ${{ env.APP_NAME }} || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name ${{ env.APP_NAME }}
+            echo "== (Optional) Write .env so manual runs match CI =="
+            # If you prefer NOT to write .env, delete this block.
+            # This keeps a consistent single-line DATABASE_URL with no CRLF.
+            printf "DATABASE_URL=%s\n" "\$DATABASE_URL" > .env
+            chmod 600 .env || true
 
+            echo "== Run deploy script =="
+            # Your repo already has scripts/deploy.py and it runs migrations.
+            python3 scripts/deploy.py
+
+            echo "== Restart PM2 with updated env =="
+            pm2 restart "${PM2_APP_NAME}" --update-env
             pm2 save
+
+            echo "== Done =="
           EOF
