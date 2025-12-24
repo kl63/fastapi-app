@@ -29,17 +29,17 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST bash -s <<EOF
+          ssh -o StrictHostKeyChecking=no "${USERNAME}@${HOST}" "DATABASE_URL='${DATABASE_URL}' bash -s" <<'EOF'
             set -e
 
             echo "Checking if project directory exists..."
-            if [ ! -d "${{ env.TARGET_DIR }}/.git" ]; then
+            if [ ! -d "/var/www/fastapi-app/.git" ]; then
               echo "Cloning project repository..."
-              git clone "${{ env.REPO_URL }}" "${{ env.TARGET_DIR }}"
+              git clone "git@github.com:kl63/fastapi-app.git" "/var/www/fastapi-app"
             fi
 
             echo "Navigating to project directory..."
-            cd "${{ env.TARGET_DIR }}"
+            cd "/var/www/fastapi-app"
 
             echo "Fetching latest code..."
             git fetch origin
@@ -56,16 +56,18 @@ jobs:
             pip install -r requirements.txt
 
             echo "Exporting DATABASE_URL..."
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            export DATABASE_URL
 
             echo "Running deploy script..."
-            python scripts/deploy.py || echo "Migration failed, continuing..."
+            python scripts/deploy.py
 
             echo "Restarting with PM2..."
             if ! command -v pm2 &> /dev/null; then
               npm install -g pm2
             fi
-            pm2 restart ${{ env.APP_NAME }} || pm2 start "gunicorn -w 4 -k uvicorn.workers.UvicornWorker main:app --bind 0.0.0.0:8000" --interpreter bash --name ${{ env.APP_NAME }}
+
+            pm2 restart fastapi-app || pm2 start /var/www/fastapi-app/venv/bin/gunicorn --name fastapi-app --interpreter none -- \
+              -w 1 -k uvicorn.workers.UvicornWorker main:app --bind 127.0.0.1:8000 --timeout 120
 
             pm2 save
           EOF
