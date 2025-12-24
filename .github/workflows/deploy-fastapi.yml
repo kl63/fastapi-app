@@ -2,8 +2,8 @@ name: Deploy FastAPI App
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+  workflow_dispatch:
 
 env:
   HOST: 134.122.5.11
@@ -29,45 +29,58 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          ssh -o StrictHostKeyChecking=no "${USERNAME}@${HOST}" "DATABASE_URL='${DATABASE_URL}' bash -s" <<'EOF'
-            set -e
+          set -e
 
-            echo "Checking if project directory exists..."
-            if [ ! -d "/var/www/fastapi-app/.git" ]; then
-              echo "Cloning project repository..."
-              git clone "git@github.com:kl63/fastapi-app.git" "/var/www/fastapi-app"
+          # 1) Make sure target dir exists
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "mkdir -p $TARGET_DIR"
+
+          # 2) Write .env safely using base64 (prevents all quoting/syntax issues)
+          ENV_B64="$(printf "DATABASE_URL=%s\n" "$DATABASE_URL" | base64 -w0)"
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "echo '$ENV_B64' | base64 -d > $TARGET_DIR/.env"
+
+          # 3) Deploy on the server
+          ssh -o StrictHostKeyChecking=no $USERNAME@$HOST "bash -s" <<'EOF'
+            set -euo pipefail
+
+            REPO_URL="git@github.com:kl63/fastapi-app.git"
+            TARGET_DIR="/var/www/fastapi-app"
+            APP_NAME="fastapi-app"
+
+            if [ ! -d "$TARGET_DIR/.git" ]; then
+              git clone "$REPO_URL" "$TARGET_DIR"
             fi
 
-            echo "Navigating to project directory..."
-            cd "/var/www/fastapi-app"
-
-            echo "Fetching latest code..."
+            cd "$TARGET_DIR"
             git fetch origin
             git reset --hard origin/main
 
-            echo "Activating virtual environment..."
             if [ ! -d "venv" ]; then
               python3 -m venv venv
             fi
-            source venv/bin/activate
 
-            echo "Installing dependencies..."
+            source venv/bin/activate
             pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "Exporting DATABASE_URL..."
-            export DATABASE_URL
+            # Load env
+            set -a
+            source "$TARGET_DIR/.env"
+            set +a
 
             echo "Running deploy script..."
             python scripts/deploy.py
 
-            echo "Restarting with PM2..."
-            if ! command -v pm2 &> /dev/null; then
+            echo "Restarting PM2..."
+            if ! command -v pm2 >/dev/null 2>&1; then
               npm install -g pm2
             fi
 
-            pm2 restart fastapi-app || pm2 start /var/www/fastapi-app/venv/bin/gunicorn --name fastapi-app --interpreter none -- \
-              -w 1 -k uvicorn.workers.UvicornWorker main:app --bind 127.0.0.1:8000 --timeout 120
+            pm2 restart "$APP_NAME" || \
+              pm2 start /var/www/fastapi-app/venv/bin/gunicorn \
+                --name "$APP_NAME" \
+                --interpreter none -- \
+                -w 1 -k uvicorn.workers.UvicornWorker main:app \
+                --bind 127.0.0.1:8000 --timeout 120
 
             pm2 save
           EOF
