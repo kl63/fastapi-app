@@ -2,7 +2,8 @@ name: Deploy FastAPI (Production)
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -10,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Setup SSH agent
@@ -23,7 +24,7 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H 134.122.5.11 >> ~/.ssh/known_hosts
 
-      - name: Deploy to droplet
+      - name: Deploy to DigitalOcean Droplet
         env:
           DROPLET_HOST: 134.122.5.11
           DROPLET_USER: kevinlin192003
@@ -33,61 +34,33 @@ jobs:
         run: |
           set -euo pipefail
 
-          # --- sanitize DATABASE_URL from GitHub Secret (removes trailing newline / CRLF) ---
+          echo "== Sanitize DATABASE_URL =="
           DATABASE_URL_CLEAN="$(printf "%s" "$DATABASE_URL_RAW" | tr -d '\r\n')"
 
-          # Safe local debug (doesn't print password)
-          python3 - <<PY
-          import urllib.parse
-          u = "${DATABASE_URL_CLEAN}"
-          p = urllib.parse.urlparse(u)
-          print("LOCAL repr(DATABASE_URL_CLEAN):", repr(u))
-          print("LOCAL repr(db path):", repr(p.path))
-          PY
+          echo "== Local verification =="
+          python3 -c "import urllib.parse; u='${DATABASE_URL_CLEAN}'; p=urllib.parse.urlparse(u); print(repr(u)); print('db path:', repr(p.path))"
 
-          ssh "${DROPLET_USER}@${DROPLET_HOST}" bash -s <<EOF
+          echo "== SSH deploy =="
+          ssh "${DROPLET_USER}@${DROPLET_HOST}" "
             set -euo pipefail
+            cd ${APP_DIR}
 
-            cd "${APP_DIR}"
-
-            echo "== Pull latest =="
             git fetch --all
             git reset --hard origin/main
 
-            echo "== Ensure venv =="
-            if [ ! -d "venv" ]; then
-              python3 -m venv venv
-            fi
             source venv/bin/activate
-            pip install --upgrade pip
             pip install -r requirements.txt
 
-            echo "== Export clean DATABASE_URL for this session =="
-            export DATABASE_URL="${DATABASE_URL_CLEAN}"
-            export DATABASE_URL="\$(printf "%s" "\$DATABASE_URL" | tr -d '\r\n')"
+            export DATABASE_URL='${DATABASE_URL_CLEAN}'
+            export DATABASE_URL=\$(printf \"%s\" \"\$DATABASE_URL\" | tr -d '\\r\\n')
 
-            echo "== Safe debug on droplet =="
-            python3 - <<'PY'
-            import os, urllib.parse
-            u = os.environ.get("DATABASE_URL","")
-            p = urllib.parse.urlparse(u)
-            print("DROPLET repr(DATABASE_URL):", repr(u))
-            print("DROPLET repr(db path):", repr(p.path))
-            PY
+            echo '== Droplet verification =='
+            python3 -c \"import os,urllib.parse; u=os.getenv('DATABASE_URL'); p=urllib.parse.urlparse(u); print(repr(u)); print('db path:',repr(p.path))\"
 
-            echo "== (Optional) Write .env so manual runs match CI =="
-            # If you prefer NOT to write .env, delete this block.
-            # This keeps a consistent single-line DATABASE_URL with no CRLF.
-            printf "DATABASE_URL=%s\n" "\$DATABASE_URL" > .env
-            chmod 600 .env || true
+            printf 'DATABASE_URL=%s\n' \"\$DATABASE_URL\" > .env
 
-            echo "== Run deploy script =="
-            # Your repo already has scripts/deploy.py and it runs migrations.
             python3 scripts/deploy.py
 
-            echo "== Restart PM2 with updated env =="
-            pm2 restart "${PM2_APP_NAME}" --update-env
+            pm2 restart ${PM2_APP_NAME} --update-env
             pm2 save
-
-            echo "== Done =="
-          EOF
+          "
