@@ -1,195 +1,145 @@
 #!/usr/bin/env python3
-"""
-Deployment script for FastAPI application
-Handles database creation, migrations, and application startup
-"""
-
 import os
 import sys
 import logging
 import subprocess
-import time
-from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
+
 import psycopg2
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
-# Add the parent directory to sys.path
-root_path = Path(__file__).parent.parent.absolute()
-sys.path.insert(0, str(root_path))
 
-# ✅ Load environment variables from .env file
-from dotenv import load_dotenv
-load_dotenv(dotenv_path=root_path / ".env")
-
-from app.core.config import settings
-
-# ✅ DEBUG: Print the DATABASE_URL from env and settings
-print("🔍 DEBUG: DATABASE_URL from env:", os.getenv("DATABASE_URL"))
-print("🔍 DEBUG: DATABASE_URL from settings:", settings.DATABASE_URL)
-
-# Configure logging
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-logger = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
-def create_database_if_not_exists():
-    if not settings.DATABASE_URL or not settings.DATABASE_URL.startswith('postgresql'):
-        logger.info("Not using PostgreSQL, skipping database creation")
-        return True
+def mask_db_url(db_url: str) -> str:
+    """Return DATABASE_URL with password masked for logs."""
+    try:
+        u = urlparse(db_url)
+        if not u.scheme:
+            return "***"
+        user = u.username or ""
+        host = u.hostname or ""
+        port = u.port or ""
+        dbname = (u.path or "").lstrip("/")
+        return f"{u.scheme}://{user}:***@{host}:{port}/{dbname}"
+    except Exception:
+        return "***"
+
+
+def parse_database_url(db_url: str):
+    """
+    Parse DATABASE_URL and DECODE username/password (critical for %40 etc).
+    Example:
+      postgresql://user:%40pass@127.0.0.1:5432/db
+    """
+    if not db_url:
+        raise ValueError("DATABASE_URL is empty or not set")
+
+    u = urlparse(db_url)
+
+    if not u.scheme or not u.hostname:
+        raise ValueError(f"Invalid DATABASE_URL (missing scheme/host): {mask_db_url(db_url)}")
+
+    db_user = unquote(u.username or "")
+    db_password = unquote(u.password or "")
+    db_host = u.hostname or "127.0.0.1"
+    db_port = u.port or 5432
+    db_name = (u.path or "").lstrip("/")
+
+    if not db_name:
+        raise ValueError("Invalid DATABASE_URL (missing database name in path)")
+
+    return db_user, db_password, db_host, db_port, db_name
+
+
+def ensure_database_exists(db_user: str, db_password: str, db_host: str, db_port: int, db_name: str):
+    """
+    Connect to 'postgres' DB and create target db if it doesn't exist.
+    Requires the user to have permission to create databases.
+    """
+    log.info("Checking if database '%s' exists on %s:%s", db_name, db_host, db_port)
+
+    conn = psycopg2.connect(
+        dbname="postgres",
+        user=db_user,
+        password=db_password,
+        host=db_host,
+        port=db_port,
+        connect_timeout=5,
+        sslmode="prefer",
+    )
+    conn.autocommit = True
 
     try:
-        parsed = urlparse(settings.DATABASE_URL)
-        dbname = parsed.path.lstrip('/')
-        user = parsed.username
-        password = parsed.password
-        host = parsed.hostname
-        port = parsed.port or 5432
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM pg_database WHERE datname = %s;", (db_name,))
+            exists = cur.fetchone() is not None
 
-        logger.info(f"Checking if database '{dbname}' exists on {host}:{port}")
+            if exists:
+                log.info("Database '%s' already exists.", db_name)
+                return
 
-        conn = psycopg2.connect(
-            host=host,
-            port=port,
-            user=user,
-            password=password,
-            database='postgres'
-        )
-        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        cur = conn.cursor()
-        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
-        exists = cur.fetchone()
-
-        if not exists:
-            logger.info(f"Database '{dbname}' does not exist. Creating it...")
-            cur.execute(f'CREATE DATABASE "{dbname}"')
-            logger.info(f"Database '{dbname}' created successfully")
-        else:
-            logger.info(f"Database '{dbname}' already exists")
-
-        cur.close()
+            log.info("Database '%s' does not exist. Creating...", db_name)
+            # Use identifier safely (dbname cannot be a parameter in CREATE DATABASE)
+            cur.execute(f'CREATE DATABASE "{db_name}";')
+            log.info("Database '%s' created successfully.", db_name)
+    finally:
         conn.close()
-        return True
-
-    except Exception as e:
-        logger.error(f"Error creating database: {e}")
-        return False
 
 
-def run_alembic_migrations():
-    try:
-        logger.info("Running Alembic migrations...")
-        os.chdir(root_path)
-        result = subprocess.run(
-            ["alembic", "upgrade", "head"],
-            capture_output=True,
-            text=True
-        )
-        if result.returncode == 0:
-            logger.info("Alembic migrations completed successfully")
-            logger.info(f"Migration output: {result.stdout}")
-            return True
+def run_alembic_upgrade():
+    """
+    Runs: alembic upgrade head
+    Assumes alembic.ini is in project root (current working directory).
+    """
+    log.info("Running Alembic migrations: alembic upgrade head")
+    result = subprocess.run(
+        ["alembic", "upgrade", "head"],
+        check=False,
+        text=True,
+        capture_output=True,
+        env=os.environ.copy(),
+    )
 
-        if "already exists" in result.stderr or "DuplicateTable" in result.stderr:
-            logger.info("Tables already exist. Stamping database with current migration...")
-            revision_result = subprocess.run(
-                ["alembic", "heads"],
-                capture_output=True,
-                text=True
-            )
-            if revision_result.returncode == 0:
-                revision_output = revision_result.stdout.strip()
-                revision = revision_output.split()[0] if revision_output else "head"
-                logger.info(f"Stamping database with revision: {revision}")
-                stamp_result = subprocess.run(
-                    ["alembic", "stamp", revision],
-                    capture_output=True,
-                    text=True
-                )
-                if stamp_result.returncode == 0:
-                    logger.info("Database stamped successfully")
-                    return True
-                else:
-                    logger.error(f"Failed to stamp database: {stamp_result.stderr}")
+    if result.stdout:
+        log.info("alembic stdout:\n%s", result.stdout.strip())
+    if result.stderr:
+        # alembic writes some info to stderr sometimes; keep as warning
+        log.warning("alembic stderr:\n%s", result.stderr.strip())
 
-        logger.error(f"Alembic migration failed: {result.stderr}")
-        return False
+    if result.returncode != 0:
+        raise RuntimeError(f"Alembic failed with exit code {result.returncode}")
 
-    except Exception as e:
-        logger.error(f"Unexpected error running migrations: {e}")
-        return False
-
-
-def check_database_connection():
-    try:
-        from app.db.session import SessionLocal
-        from sqlalchemy import text
-
-        logger.info("Testing database connection...")
-        db = SessionLocal()
-        db.execute(text("SELECT 1"))
-        db.close()
-        logger.info("Database connection successful")
-        return True
-
-    except Exception as e:
-        logger.error(f"Database connection failed: {e}")
-        return False
-
-
-def create_initial_migration_if_needed():
-    try:
-        versions_dir = root_path / "alembic" / "versions"
-        migration_files = [f for f in versions_dir.glob("*.py") if not f.name.startswith("__")]
-
-        if not migration_files:
-            logger.info("No migrations found. Creating initial migration...")
-            result = subprocess.run(
-                ["alembic", "revision", "--autogenerate", "-m", "Initial migration"],
-                capture_output=True,
-                text=True,
-                cwd=root_path
-            )
-            if result.returncode == 0:
-                logger.info("Initial migration created successfully")
-                return True
-            else:
-                logger.error(f"Failed to create initial migration: {result.stderr}")
-                return False
-        else:
-            logger.info(f"Found {len(migration_files)} existing migration(s)")
-            return True
-
-    except Exception as e:
-        logger.error(f"Error checking/creating migrations: {e}")
-        return False
+    log.info("Alembic migrations completed.")
 
 
 def main():
-    logger.info("Starting deployment process...")
+    try:
+        db_url = os.getenv("DATABASE_URL", "")
+        log.info("🔍 DEBUG: DATABASE_URL from env: %s", mask_db_url(db_url))
 
-    if not create_database_if_not_exists():
-        logger.error("Failed to create database. Exiting.")
-        sys.exit(1)
+        db_user, db_password, db_host, db_port, db_name = parse_database_url(db_url)
 
-    if not create_initial_migration_if_needed():
-        logger.error("Failed to create initial migration. Exiting.")
-        sys.exit(1)
+        # Create DB if needed
+        ensure_database_exists(db_user, db_password, db_host, db_port, db_name)
 
-    if not run_alembic_migrations():
-        logger.error("Failed to run migrations. Exiting.")
-        sys.exit(1)
+        # Run migrations
+        run_alembic_upgrade()
 
-    if not check_database_connection():
-        logger.error("Database connection test failed. Exiting.")
-        sys.exit(1)
+        log.info("✅ Deployment steps completed successfully.")
+        return 0
 
-    logger.info("Deployment completed successfully!")
-    logger.info("Database is ready for the application.")
+    except psycopg2.OperationalError as e:
+        log.error("Database connection error: %s", str(e))
+        return 1
+    except Exception as e:
+        log.error("Deployment error: %s", str(e))
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
