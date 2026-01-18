@@ -74,7 +74,7 @@ jobs:
           DROPLET_HOST: 134.122.5.11
           DROPLET_USER: kevinlin192003
           APP_DIR: /var/www/fastapi-app
-          IMAGE_TAG: ${{ github.ref_name }}-${{ github.sha }}
+          IMAGE_TAG: latest
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
