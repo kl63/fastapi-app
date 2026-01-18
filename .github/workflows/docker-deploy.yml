@@ -98,11 +98,11 @@ jobs:
             docker stop fastapi-app 2>/dev/null || true
             docker rm fastapi-app 2>/dev/null || true
             
-            # Run new container
+            # Run new container with host network mode
             docker run -d \
               --name fastapi-app \
               --restart unless-stopped \
-              -p 8000:8000 \
+              --network host \
               -e DATABASE_URL='${DATABASE_URL}' \
               -e SECRET_KEY='${SECRET_KEY}' \
               -e STRIPE_SECRET_KEY='${STRIPE_SECRET_KEY}' \
