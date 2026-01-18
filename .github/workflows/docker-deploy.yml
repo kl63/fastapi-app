@@ -75,12 +75,17 @@ jobs:
           DROPLET_USER: kevinlin192003
           APP_DIR: /var/www/fastapi-app
           IMAGE_TAG: latest
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL_RAW: ${{ secrets.DATABASE_URL }}
           SECRET_KEY: ${{ secrets.SECRET_KEY }}
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
           STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
+          set -euo pipefail
+          
+          # Sanitize DATABASE_URL to remove whitespace
+          DATABASE_URL_CLEAN="$(printf "%s" "$DATABASE_URL_RAW" | tr -d '\r\n' | xargs)"
+          
           ssh "${DROPLET_USER}@${DROPLET_HOST}" "
             set -euo pipefail
             
@@ -103,7 +108,7 @@ jobs:
               --name fastapi-app \
               --restart unless-stopped \
               --network host \
-              -e DATABASE_URL='${DATABASE_URL}' \
+              -e DATABASE_URL='${DATABASE_URL_CLEAN}' \
               -e SECRET_KEY='${SECRET_KEY}' \
               -e STRIPE_SECRET_KEY='${STRIPE_SECRET_KEY}' \
               -e STRIPE_PUBLISHABLE_KEY='${STRIPE_PUBLISHABLE_KEY}' \
