@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (for local development)
+  db:
+    image: postgres:15-alpine
+    container_name: fastapi-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fastapi}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fastapi}
+      POSTGRES_DB: ${POSTGRES_DB:-fastapi}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fastapi}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fastapi-app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY:-supersecretkey}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount code for development (comment out for production)
+      - .:/app
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
