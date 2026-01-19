@@ -50,14 +50,14 @@ def health_check():
         # Don't use SQLAlchemy for health check to avoid greenlet issues
         # Instead use direct psycopg2 connection
         import psycopg2
-        from urllib.parse import urlparse
+        from urllib.parse import urlparse, unquote
         
         # Parse DATABASE_URL to get connection parameters
         if settings.DATABASE_URL.startswith('postgresql'):
             parsed = urlparse(settings.DATABASE_URL)
             dbname = parsed.path.lstrip('/')
             user = parsed.username
-            password = parsed.password
+            password = unquote(parsed.password) if parsed.password else None
             host = parsed.hostname
             port = parsed.port or 5432
             
