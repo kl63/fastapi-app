@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Union, List
 import uuid
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, and_
 
 from app.models.product import Product
@@ -9,12 +9,12 @@ from app.schemas.product import ProductCreate, ProductUpdate
 
 def get_product(db: Session, product_id: str) -> Optional[Product]:
     """Get product by ID"""
-    return db.query(Product).filter(Product.id == product_id).first()
+    return db.query(Product).options(joinedload(Product.category)).filter(Product.id == product_id).first()
 
 
 def get_product_by_slug(db: Session, slug: str) -> Optional[Product]:
     """Get product by slug"""
-    return db.query(Product).filter(Product.slug == slug).first()
+    return db.query(Product).options(joinedload(Product.category)).filter(Product.slug == slug).first()
 
 
 def get_products(
@@ -26,7 +26,7 @@ def get_products(
     sort_order: str = "asc"
 ) -> List[Product]:
     """Get multiple products with filtering, pagination and sorting"""
-    query = db.query(Product).filter(Product.is_active == True)
+    query = db.query(Product).options(joinedload(Product.category)).filter(Product.is_active == True)
     
     if filters:
         if filters.get("category"):
@@ -78,14 +78,14 @@ def get_products(
 
 def get_featured_products(db: Session, limit: int = 10) -> List[Product]:
     """Get featured products"""
-    return db.query(Product).filter(
+    return db.query(Product).options(joinedload(Product.category)).filter(
         and_(Product.is_featured == True, Product.is_active == True)
     ).limit(limit).all()
 
 
 def get_related_products(db: Session, product: Product, limit: int = 6) -> List[Product]:
     """Get related products based on category"""
-    return db.query(Product).filter(
+    return db.query(Product).options(joinedload(Product.category)).filter(
         and_(
             Product.category_id == product.category_id,
             Product.id != product.id,
@@ -103,7 +103,7 @@ def search_products(
 ) -> List[Product]:
     """Search products by query"""
     search_term = f"%{query}%"
-    db_query = db.query(Product).filter(
+    db_query = db.query(Product).options(joinedload(Product.category)).filter(
         and_(
             Product.is_active == True,
             or_(

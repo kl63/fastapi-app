@@ -112,6 +112,7 @@ class ProductSummary(BaseModel):
     rating_average: float = 0.0
     rating_count: int = 0
     discount_percentage: Optional[float] = None
+    category: Optional['CategorySummary'] = None
 
     class Config:
         from_attributes = True
@@ -125,3 +126,4 @@ class ProductInDB(ProductInDBBase):
 # Import and resolve forward references
 from app.schemas.category import CategorySummary
 Product.model_rebuild()
+ProductSummary.model_rebuild()
