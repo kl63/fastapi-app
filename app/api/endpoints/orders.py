@@ -31,7 +31,7 @@ def get_orders(
     - Regular users: Returns only their own orders
     """
     # Check if user is admin
-    if current_user.role == "admin":
+    if current_user.is_admin:
         # Return all orders for admin users
         orders = get_all_orders(db, skip=skip, limit=limit, status=status)
     else:
