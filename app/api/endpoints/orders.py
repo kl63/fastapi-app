@@ -26,11 +26,19 @@ def get_orders(
     status: Optional[OrderStatus] = None,
 ) -> Any:
     """
-    Get user's orders with optional status filter
+    Get orders with optional status filter.
+    - Admin users: Returns ALL customer orders
+    - Regular users: Returns only their own orders
     """
-    orders = get_user_orders(
-        db, user_id=current_user.id, skip=skip, limit=limit, status=status
-    )
+    # Check if user is admin
+    if current_user.role == "admin":
+        # Return all orders for admin users
+        orders = get_all_orders(db, skip=skip, limit=limit, status=status)
+    else:
+        # Return only user's own orders for regular users
+        orders = get_user_orders(
+            db, user_id=current_user.id, skip=skip, limit=limit, status=status
+        )
     return orders
 
 
