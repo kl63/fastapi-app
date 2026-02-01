@@ -6,17 +6,10 @@ services:
     container_name: fastapi-db
     restart: unless-stopped
 
-    # Do NOT expose Postgres publicly on a droplet
-    # ports: ["5432:5432"]  # <-- removed
-
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-
-      # Optional (adds a tiny safety guard for password storage in the container env)
-      # POSTGRES_INITDB_ARGS: "--auth=scram-sha-256"
-      # POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -30,13 +23,6 @@ services:
       timeout: 5s
       retries: 5
 
-    # Basic container hardening
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    # Postgres needs write access to its data dir, so don't set read_only here.
-
   app:
     build:
       context: .
@@ -47,35 +33,22 @@ services:
       db:
         condition: service_healthy
 
-    # If you run Nginx on the droplet (recommended), bind only to localhost:
+    # Only Nginx on the droplet can reach it
     ports:
       - "127.0.0.1:8000:8000"
-    # If you are NOT using Nginx and want it reachable directly, use:
-    # ports:
-    #   - "8000:8000"
 
     environment:
-      # Use asyncpg for better performance with FastAPI
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-
-      # No insecure defaults — require these in .env
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
-
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
-
-      # Helpful safety defaults for many frameworks
       ENV: ${ENV:-production}
 
     networks:
       - internal
 
-    # Production: do NOT mount your source code
-    # volumes:
-    #   - .:/app
-
-    # Basic container hardening
+    # Container hardening (keep on app)
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -83,15 +56,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    # If your app needs a writable uploads/cache dir, add ONE explicit writable mount:
-    # volumes:
-    #   - app_data:/app/data
 
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/health || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/openapi.json >/dev/null || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
+      start_period: 20s
 
 networks:
   internal:
@@ -99,4 +70,3 @@ networks:
 
 volumes:
   postgres_data:
-  # app_data:
