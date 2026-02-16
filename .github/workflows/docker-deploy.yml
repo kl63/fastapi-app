@@ -54,7 +54,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -67,11 +67,11 @@ jobs:
       - name: Add droplet to known_hosts
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H 134.122.5.11 >> ~/.ssh/known_hosts
+          ssh-keyscan -H 142.93.52.178 >> ~/.ssh/known_hosts
 
       - name: Deploy to DigitalOcean Droplet
         env:
-          DROPLET_HOST: 134.122.5.11
+          DROPLET_HOST: 142.93.52.178
           DROPLET_USER: kevinlin192003
           APP_DIR: /var/www/fastapi-app
           IMAGE_TAG: latest
@@ -82,27 +82,27 @@ jobs:
           STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
         run: |
           set -euo pipefail
-          
+
           # Sanitize DATABASE_URL to remove whitespace
           DATABASE_URL_CLEAN="$(printf "%s" "$DATABASE_URL_RAW" | tr -d '\r\n' | xargs)"
-          
+
           ssh "${DROPLET_USER}@${DROPLET_HOST}" "
             set -euo pipefail
-            
+
             # Create app directory if it doesn't exist
             mkdir -p ${APP_DIR}
             cd ${APP_DIR}
-            
+
             # Login to GitHub Container Registry
             echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
+
             # Pull the latest image
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
-            
+
             # Stop and remove old container
             docker stop fastapi-app 2>/dev/null || true
             docker rm fastapi-app 2>/dev/null || true
-            
+
             # Run new container with host network mode
             docker run -d \
               --name fastapi-app \
@@ -114,17 +114,17 @@ jobs:
               -e STRIPE_PUBLISHABLE_KEY='${STRIPE_PUBLISHABLE_KEY}' \
               -e STRIPE_WEBHOOK_SECRET='${STRIPE_WEBHOOK_SECRET}' \
               ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${IMAGE_TAG}
-            
+
             # Clean up old images (keep last 3)
             docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }} --format '{{.ID}} {{.CreatedAt}}' | \
               sort -rk 2 | \
               tail -n +4 | \
               awk '{print \$1}' | \
               xargs -r docker rmi 2>/dev/null || true
-            
+
             # Show container status
             docker ps -a | grep fastapi-app || true
-            
+
             # Wait for health check
             echo 'Waiting for app to be healthy...'
             for i in {1..30}; do
