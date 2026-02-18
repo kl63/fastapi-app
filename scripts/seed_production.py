@@ -9,8 +9,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Set production database URL BEFORE importing any app modules
-os.environ['DATABASE_URL'] = 'postgresql://kl63:Kevinlin1234!@localhost:5432/fastapi_api'
+# Use DATABASE_URL from environment (set in Docker container)
+# No need to override it here - the container already has the correct value
 
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
