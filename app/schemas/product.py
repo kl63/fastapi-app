@@ -109,6 +109,7 @@ class ProductSummary(BaseModel):
     is_organic: bool = False
     is_on_sale: bool = False
     in_stock: bool = True
+    stock_quantity: int = 0
     rating_average: float = 0.0
     rating_count: int = 0
     discount_percentage: Optional[float] = None
