@@ -247,6 +247,7 @@ def seed_bulk_products(db: Session, num_products: int = 1000):
     products_created = 0
     batch_size = 100
     products_batch = []
+    used_slugs = set()  # Track slugs to prevent duplicates
     
     for i in range(num_products):
         # Select random category
@@ -272,14 +273,12 @@ def seed_bulk_products(db: Session, num_products: int = 1000):
         # Add unique suffix to slug if needed for uniqueness
         original_slug = slug
         counter = 1
-        while db.query(Product).filter(Product.slug == slug).first():
+        while slug in used_slugs or db.query(Product).filter(Product.slug == slug).first():
             slug = f"{original_slug}-{counter}"
             counter += 1
         
-        # Check if product already exists
-        existing = db.query(Product).filter(Product.slug == slug).first()
-        if existing:
-            continue
+        # Add slug to used set
+        used_slugs.add(slug)
         
         # Generate prices
         price, original_price = generate_price()
