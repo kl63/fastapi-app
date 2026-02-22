@@ -106,14 +106,52 @@ PRODUCT_TEMPLATES = {
     }
 }
 
-# Adjectives to create variety
-ADJECTIVES = [
-    "Organic", "Fresh", "Premium", "Natural", "Local", "Farm-Fresh", "Artisan",
-    "Gourmet", "Free-Range", "Grass-Fed", "Wild-Caught", "Sustainably Sourced",
-    "Hand-Picked", "Vine-Ripened", "Sun-Dried", "Stone-Ground", "Cold-Pressed",
-    "Extra Virgin", "Aged", "Smoked", "Roasted", "Raw", "Whole", "Sliced",
-    "Diced", "Chopped", "Shredded", "Crumbled"
-]
+# Product-specific adjectives to create variety
+PRODUCT_ADJECTIVES = {
+    # Fruits
+    "Apple": ["Organic", "Fresh", "Crisp", "Sweet", "Honeycrisp", "Gala", "Fuji"],
+    "Banana": ["Organic", "Fresh", "Ripe", "Yellow"],
+    "Orange": ["Fresh", "Juicy", "Sweet", "Navel", "Valencia"],
+    "Grape": ["Organic", "Fresh", "Seedless", "Red", "Green"],
+    "Strawberry": ["Organic", "Fresh", "Sweet", "Ripe"],
+    "Blueberry": ["Organic", "Fresh", "Wild"],
+    "Mango": ["Fresh", "Ripe", "Sweet", "Tropical"],
+    "Watermelon": ["Fresh", "Seedless", "Sweet"],
+    "Pineapple": ["Fresh", "Sweet", "Tropical", "Golden"],
+    "Avocado": ["Organic", "Fresh", "Ripe", "Hass"],
+    # Vegetables
+    "Carrot": ["Organic", "Fresh", "Baby", "Rainbow"],
+    "Broccoli": ["Organic", "Fresh", "Green"],
+    "Tomato": ["Organic", "Fresh", "Vine-Ripened", "Roma", "Cherry"],
+    "Lettuce": ["Organic", "Fresh", "Romaine", "Iceberg"],
+    "Spinach": ["Organic", "Fresh", "Baby"],
+    "Potato": ["Organic", "Fresh", "Russet", "Red", "Yukon Gold"],
+    "Onion": ["Fresh", "Sweet", "Red", "Yellow", "White"],
+    # Dairy
+    "Milk": ["Organic", "Whole", "2%", "Skim", "Fresh"],
+    "Cheese": ["Aged", "Sharp", "Mild", "Shredded", "Sliced"],
+    "Yogurt": ["Greek", "Low-Fat", "Non-Fat", "Probiotic"],
+    "Butter": ["Organic", "Salted", "Unsalted", "European"],
+    "Eggs": ["Organic", "Free-Range", "Cage-Free", "Brown", "White"],
+    # Meat & Seafood
+    "Chicken": ["Organic", "Free-Range", "Fresh", "Boneless", "Skinless"],
+    "Beef": ["Grass-Fed", "Organic", "Aged", "Prime", "Choice"],
+    "Pork": ["Fresh", "Organic", "Bone-In", "Boneless"],
+    "Salmon": ["Wild-Caught", "Fresh", "Atlantic", "Pacific"],
+    "Shrimp": ["Wild-Caught", "Jumbo", "Large", "Fresh"],
+    # Bakery
+    "Bread": ["Artisan", "Whole Grain", "Multigrain", "Sourdough", "Fresh"],
+    "Bagel": ["Fresh", "Plain", "Everything", "Sesame"],
+    "Croissant": ["Butter", "Fresh", "French"],
+    "Muffin": ["Fresh", "Blueberry", "Chocolate Chip"],
+    "Cookie": ["Chocolate Chip", "Fresh-Baked", "Homemade"],
+    # Beverages
+    "Juice": ["Fresh-Squeezed", "100%", "Cold-Pressed", "Organic"],
+    "Coffee": ["Organic", "Fair Trade", "Dark Roast", "Medium Roast"],
+    "Tea": ["Organic", "Green", "Black", "Herbal"],
+    "Soda": ["Zero Sugar", "Diet", "Classic"],
+    "Water": ["Spring", "Purified", "Sparkling", "Alkaline"],
+}
 
 # Brands
 BRANDS = [
@@ -237,9 +275,9 @@ def generate_product_name(category_name: str, base_name: str, brand: str = None)
         qual = random.choice(quality)
         variations.append(f"{qual} {base_name}")
     
-    # Add adjective variation
-    if random.random() > 0.5:
-        adjective = random.choice(ADJECTIVES)
+    # Add product-specific adjective variation
+    if random.random() > 0.5 and base_name in PRODUCT_ADJECTIVES:
+        adjective = random.choice(PRODUCT_ADJECTIVES[base_name])
         variations.append(f"{adjective} {base_name}")
     
     # Default
