@@ -152,12 +152,51 @@ UNSPLASH_IMAGES = {
 }
 
 
-def generate_product_name(category_name: str, base_name: str, index: int) -> str:
-    """Generate varied product names"""
-    if index % 3 == 0 and random.random() > 0.5:
+def generate_product_name(category_name: str, base_name: str, brand: str = None) -> str:
+    """Generate varied product names with realistic variations"""
+    variations = []
+    
+    # Size variations
+    sizes = ["Small", "Medium", "Large", "Family Size", "Value Pack", "Single Serve", 
+             "12 oz", "16 oz", "32 oz", "1 lb", "2 lb", "5 lb", "1 Gallon", "Half Gallon"]
+    
+    # Packaging variations
+    packaging = ["Pack of 6", "Pack of 12", "Bundle", "Twin Pack", "Triple Pack"]
+    
+    # Quality variations
+    quality = ["Premium", "Select", "Choice", "Grade A", "Extra"]
+    
+    # Build variations
+    if brand:
+        variations.append(f"{brand} {base_name}")
+        if random.random() > 0.5:
+            size = random.choice(sizes)
+            variations.append(f"{brand} {base_name} - {size}")
+    
+    # Add size variation
+    if random.random() > 0.4:
+        size = random.choice(sizes)
+        variations.append(f"{base_name} - {size}")
+    
+    # Add packaging variation
+    if random.random() > 0.6:
+        pack = random.choice(packaging)
+        variations.append(f"{base_name} {pack}")
+    
+    # Add quality variation
+    if random.random() > 0.5:
+        qual = random.choice(quality)
+        variations.append(f"{qual} {base_name}")
+    
+    # Add adjective variation
+    if random.random() > 0.5:
         adjective = random.choice(ADJECTIVES)
-        return f"{adjective} {base_name}"
-    return base_name
+        variations.append(f"{adjective} {base_name}")
+    
+    # Default
+    variations.append(base_name)
+    
+    return random.choice(variations)
 
 
 def generate_description(product_name: str, category_name: str) -> str:
@@ -223,12 +262,19 @@ def seed_bulk_products(db: Session, num_products: int = 1000):
         else:
             base_name = f"Product {i+1}"
         
-        # Generate product name with variation
-        product_name = generate_product_name(category_name, base_name, i)
+        # Generate brand first
+        brand = random.choice(BRANDS) if random.random() > 0.3 else None
         
-        # Add number suffix for uniqueness
-        product_name = f"{product_name} #{i+1}"
+        # Generate product name with realistic variations
+        product_name = generate_product_name(category_name, base_name, brand)
         slug = create_slug(product_name)
+        
+        # Add unique suffix to slug if needed for uniqueness
+        original_slug = slug
+        counter = 1
+        while db.query(Product).filter(Product.slug == slug).first():
+            slug = f"{original_slug}-{counter}"
+            counter += 1
         
         # Check if product already exists
         existing = db.query(Product).filter(Product.slug == slug).first()
@@ -239,8 +285,7 @@ def seed_bulk_products(db: Session, num_products: int = 1000):
         price, original_price = generate_price()
         is_on_sale = original_price is not None
         
-        # Generate other attributes
-        brand = random.choice(BRANDS) if random.random() > 0.3 else None
+        # Generate other attributes (brand already generated above)
         is_organic = random.random() < 0.25
         is_featured = random.random() < 0.15
         stock_quantity = random.randint(10, 500)
