@@ -70,6 +70,8 @@ def get_order_endpoint(
 ) -> Any:
     """
     Get specific order by ID
+    - Admin users: Can view any order
+    - Regular users: Can only view their own orders
     """
     order = get_order(db, order_id=order_id)
     if not order:
@@ -78,8 +80,8 @@ def get_order_endpoint(
             detail="Order not found"
         )
     
-    # Check if user owns the order
-    if order.user_id != current_user.id:
+    # Check permissions: admin can view any order, regular users only their own
+    if not current_user.is_admin and order.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
