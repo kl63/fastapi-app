@@ -173,7 +173,7 @@ PRODUCT_IMAGES = {
     "Watermelon": "https://images.unsplash.com/photo-1589984662646-e7b2e4962f18?w=400&h=400&fit=crop&auto=format",
     "Pineapple": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&h=400&fit=crop&auto=format",
     "Avocado": "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=400&fit=crop&auto=format",
-    "Cherry": "https://images.unsplash.com/photo-Myb4MbMd_UM?w=400&h=400&fit=crop&auto=format",
+    "Cherry": "https://images.unsplash.com/photo-1528821128474-27f963b062bf?w=400&h=400&fit=crop&auto=format",
     "Peach": "https://images.unsplash.com/photo-1629828874514-e4f7907b99b5?w=400&h=400&fit=crop&auto=format",
     "Plum": "https://images.unsplash.com/photo-1604656632516-7e6c0b5f7b8a?w=400&h=400&fit=crop&auto=format",
     "Kiwi": "https://images.unsplash.com/photo-1585059895524-72359e9fc11a?w=400&h=400&fit=crop&auto=format",
@@ -326,8 +326,8 @@ def generate_product_name(category_name: str, base_name: str, brand: str = None)
     return random.choice(variations)
 
 
-def get_product_image(base_name: str) -> str:
-    """Get product-specific image URL"""
+def get_product_image(base_name: str, category_name: str = None) -> str:
+    """Get product-specific image URL with category fallback"""
     import re
     
     base_lower = base_name.lower()
@@ -365,7 +365,23 @@ def get_product_image(base_name: str) -> str:
         if key.lower() in base_lower or base_lower in key.lower():
             return PRODUCT_IMAGES[key]
     
-    # Default to a generic grocery image
+    # Category-based fallback images (better than generic)
+    category_fallbacks = {
+        "Fresh Produce": "https://images.unsplash.com/photo-1610348725531-843dff563e2c?w=400&h=400&fit=crop&auto=format",
+        "Dairy & Eggs": "https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=400&h=400&fit=crop&auto=format",
+        "Meat & Seafood": "https://images.unsplash.com/photo-1607623488235-88c7e5e82e0d?w=400&h=400&fit=crop&auto=format",
+        "Bakery": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop&auto=format",
+        "Beverages": "https://images.unsplash.com/photo-1544145945-35e8d9ddfd81?w=400&h=400&fit=crop&auto=format",
+        "Pantry Staples": "https://images.unsplash.com/photo-1556910636-196569d593c2?w=400&h=400&fit=crop&auto=format",
+        "Snacks & Sweets": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=400&fit=crop&auto=format",
+        "Frozen Foods": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&h=400&fit=crop&auto=format",
+    }
+    
+    # Use category fallback if available
+    if category_name and category_name in category_fallbacks:
+        return category_fallbacks[category_name]
+    
+    # Last resort: generic grocery image
     return "https://images.unsplash.com/photo-1534080564583-6be75777b70a?w=400&h=400&fit=crop&auto=format"
 
 
@@ -461,8 +477,8 @@ def seed_bulk_products(db: Session, num_products: int = 1000):
         is_featured = random.random() < 0.15
         stock_quantity = random.randint(10, 500)
         
-        # Get product-specific image
-        image = get_product_image(base_name)
+        # Get product-specific image (with category fallback)
+        image = get_product_image(base_name, category_name)
         
         # Create product
         product = Product(
