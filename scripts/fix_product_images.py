@@ -106,10 +106,17 @@ def get_product_image_url(product_name: str) -> str:
     return "https://images.unsplash.com/photo-1534080564583-6be75777b70a?w=400&h=400&fit=crop&auto=format"
 
 
-def fix_product_images(db: Session):
-    """Fix product thumbnail URLs"""
+def fix_product_images(db: Session, force_all: bool = False):
+    """Fix product thumbnail URLs
+    
+    Args:
+        db: Database session
+        force_all: If True, reassign ALL images based on product names (ignores current URLs)
+    """
     
     print("\n🔍 Analyzing product thumbnails...")
+    if force_all:
+        print("⚠️  FORCE MODE: Will reassign ALL product images based on names")
     
     # Get all products
     products = db.query(Product).all()
@@ -124,44 +131,51 @@ def fix_product_images(db: Session):
         needs_fix = False
         reason = ""
         
-        # Check if thumbnail is None or empty
-        if not product.thumbnail or product.thumbnail.strip() == "":
+        if force_all:
+            # Force reassign all images
             needs_fix = True
-            reason = "Empty/None thumbnail"
-        
-        # Check for webpage URLs (unsplash.com/photos/)
-        elif "unsplash.com/photos/" in product.thumbnail:
-            needs_fix = True
-            reason = "Webpage URL instead of image URL"
-        
-        # Check for missing query parameters
-        elif product.thumbnail.startswith("https://images.unsplash.com/photo-") and "?" not in product.thumbnail:
-            needs_fix = True
-            reason = "Missing URL parameters"
-        
-        # Check for known 404 URLs
-        elif "photo-1546470427-1d9fcc4a1a2a" in product.thumbnail or \
-             "photo-1551106652-a5bcf4b1a60" in product.thumbnail:
-            needs_fix = True
-            reason = "Known 404 image"
+            reason = "Force reassignment based on product name"
+        else:
+            # Check if thumbnail is None or empty
+            if not product.thumbnail or product.thumbnail.strip() == "":
+                needs_fix = True
+                reason = "Empty/None thumbnail"
+            
+            # Check for webpage URLs (unsplash.com/photos/)
+            elif "unsplash.com/photos/" in product.thumbnail:
+                needs_fix = True
+                reason = "Webpage URL instead of image URL"
+            
+            # Check for missing query parameters
+            elif product.thumbnail.startswith("https://images.unsplash.com/photo-") and "?" not in product.thumbnail:
+                needs_fix = True
+                reason = "Missing URL parameters"
+            
+            # Check for known 404 URLs
+            elif "photo-1546470427-1d9fcc4a1a2a" in product.thumbnail or \
+                 "photo-1551106652-a5bcf4b1a60" in product.thumbnail:
+                needs_fix = True
+                reason = "Known 404 image"
         
         if needs_fix:
             issues_found += 1
             old_url = product.thumbnail
             new_url = get_product_image_url(product.name)
             
-            print(f"\n❌ Issue #{issues_found}: {product.name}")
-            print(f"   Reason: {reason}")
-            print(f"   Old: {old_url}")
-            print(f"   New: {new_url}")
+            if issues_found <= 10 or force_all:  # Show first 10 or all in force mode
+                print(f"\n{'🔄' if force_all else '❌'} #{issues_found}: {product.name}")
+                print(f"   Reason: {reason}")
+                if old_url and old_url != new_url:
+                    print(f"   Old: {old_url[:80]}...")
+                print(f"   New: {new_url[:80]}...")
             
             product.thumbnail = new_url
             fixed_count += 1
     
     if fixed_count > 0:
         print(f"\n{'='*60}")
-        print(f"⚠️  Found {issues_found} products with image issues")
-        print(f"✅ Ready to fix {fixed_count} products")
+        print(f"⚠️  Found {issues_found} products {'to reassign' if force_all else 'with image issues'}")
+        print(f"✅ Ready to {'reassign' if force_all else 'fix'} {fixed_count} products")
         print(f"{'='*60}")
         
         confirmation = input(f"\n⚠️  Update {fixed_count} product images? Type 'YES' to confirm: ")
@@ -190,10 +204,13 @@ def main():
     print("🖼️  FIX PRODUCT THUMBNAIL URLS")
     print("=" * 60)
     
+    # Check for force mode argument
+    force_all = len(sys.argv) > 1 and sys.argv[1] == '--force'
+    
     db = SessionLocal()
     
     try:
-        fix_product_images(db)
+        fix_product_images(db, force_all=force_all)
         print("\n" + "=" * 60)
         print("🎉 IMAGE FIX COMPLETED!")
         print("=" * 60)
