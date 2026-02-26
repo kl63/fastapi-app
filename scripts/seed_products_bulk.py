@@ -304,16 +304,30 @@ def get_product_image(base_name: str) -> str:
     
     base_lower = base_name.lower()
     
-    # Sort keys by length (longest first) to prioritize more specific matches
-    sorted_keys = sorted(PRODUCT_IMAGES.keys(), key=len, reverse=True)
+    # Product type priorities - these should be matched first (highest priority)
+    # Beverages, dairy, pantry items are the main product, not the flavor
+    priority_types = ['Juice', 'Milk', 'Water', 'Soda', 'Coffee', 'Tea', 'Yogurt', 
+                      'Cheese', 'Butter', 'Cream', 'Bread', 'Pasta', 'Rice', 'Cereal', 
+                      'Oil', 'Sauce', 'Eggs']
     
     # Check for exact match first
     if base_name in PRODUCT_IMAGES:
         return PRODUCT_IMAGES[base_name]
     
-    # Try word boundary match (e.g., "Cod" matches "Wild Cod" but not "Broccoli")
+    # Check priority types first (e.g., "Apple Juice" should match "Juice" not "Apple")
+    for key in priority_types:
+        pattern = r'\b' + re.escape(key.lower()) + r'\b'
+        if re.search(pattern, base_lower):
+            if key in PRODUCT_IMAGES:
+                return PRODUCT_IMAGES[key]
+    
+    # Sort remaining keys by length (longest first) for specificity
+    sorted_keys = sorted(PRODUCT_IMAGES.keys(), key=len, reverse=True)
+    
+    # Try word boundary match for other products
     for key in sorted_keys:
-        # Match as whole word using word boundaries
+        if key in priority_types:
+            continue  # Already checked above
         pattern = r'\b' + re.escape(key.lower()) + r'\b'
         if re.search(pattern, base_lower):
             return PRODUCT_IMAGES[key]
