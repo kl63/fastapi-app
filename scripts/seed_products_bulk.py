@@ -173,6 +173,13 @@ PRODUCT_IMAGES = {
     "Watermelon": "https://images.unsplash.com/photo-1589984662646-e7b2e4962f18?w=400&h=400&fit=crop&auto=format",
     "Pineapple": "https://images.unsplash.com/photo-1550258987-190a2d41a8ba?w=400&h=400&fit=crop&auto=format",
     "Avocado": "https://images.unsplash.com/photo-1523049673857-eb18f1d7b578?w=400&h=400&fit=crop&auto=format",
+    "Cherry": "https://images.unsplash.com/photo-Myb4MbMd_UM?w=400&h=400&fit=crop&auto=format",
+    "Peach": "https://images.unsplash.com/photo-1629828874514-e4f7907b99b5?w=400&h=400&fit=crop&auto=format",
+    "Plum": "https://images.unsplash.com/photo-1604656632516-7e6c0b5f7b8a?w=400&h=400&fit=crop&auto=format",
+    "Kiwi": "https://images.unsplash.com/photo-1585059895524-72359e9fc11a?w=400&h=400&fit=crop&auto=format",
+    "Pear": "https://images.unsplash.com/photo-1569870499705-504209102861?w=400&h=400&fit=crop&auto=format",
+    "Lemon": "https://images.unsplash.com/photo-1590502593747-42a996133562?w=400&h=400&fit=crop&auto=format",
+    "Lime": "https://images.unsplash.com/photo-1582169296194-e4d644c48063?w=400&h=400&fit=crop&auto=format",
     # Vegetables
     "Carrot": "https://images.unsplash.com/photo-1598170845058-32b9d6a5da37?w=400&h=400&fit=crop&auto=format",
     "Broccoli": "https://images.unsplash.com/photo-1459411621453-7b03977f4bfc?w=400&h=400&fit=crop&auto=format",
@@ -182,6 +189,12 @@ PRODUCT_IMAGES = {
     "Potato": "https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&h=400&fit=crop&auto=format",
     "Onion": "https://images.unsplash.com/photo-1587049352846-4a222e784098?w=400&h=400&fit=crop&auto=format",
     "Pepper": "https://images.unsplash.com/photo-1563565375-f3fdfdbefa83?w=400&h=400&fit=crop&auto=format",
+    "Cucumber": "https://images.unsplash.com/photo-1604977042946-1eecc30f269e?w=400&h=400&fit=crop&auto=format",
+    "Cauliflower": "https://images.unsplash.com/photo-1568584711319-53a29bb7e314?w=400&h=400&fit=crop&auto=format",
+    "Cabbage": "https://images.unsplash.com/photo-1594282486552-05b4d80fbb9f?w=400&h=400&fit=crop&auto=format",
+    "Garlic": "https://images.unsplash.com/photo-1588347818036-b6e8cc40caa2?w=400&h=400&fit=crop&auto=format",
+    "Mushroom": "https://images.unsplash.com/photo-1565623006065-1e4b2eecc15e?w=400&h=400&fit=crop&auto=format",
+    "Corn": "https://images.unsplash.com/photo-1551754655-cd27e38d2076?w=400&h=400&fit=crop&auto=format",
     # Dairy
     "Milk": "https://images.unsplash.com/photo-1550583724-b2692b85b150?w=400&h=400&fit=crop&auto=format",
     "Cheese": "https://images.unsplash.com/photo-1486297678162-eb2a19b0a32d?w=400&h=400&fit=crop&auto=format",
@@ -198,6 +211,9 @@ PRODUCT_IMAGES = {
     "Turkey": "https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58?w=400&h=400&fit=crop&auto=format",
     "Tuna": "https://images.unsplash.com/photo-1580526331485-9662cd36b4f9?w=400&h=400&fit=crop&auto=format",
     "Cod": "https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=400&h=400&fit=crop&auto=format",
+    "Bacon": "https://images.unsplash.com/photo-1528607929212-2636ec44253e?w=400&h=400&fit=crop&auto=format",
+    "Sausage": "https://images.unsplash.com/photo-1588168333986-5078d3ae3976?w=400&h=400&fit=crop&auto=format",
+    "Ham": "https://images.unsplash.com/photo-1624191141823-4a2b3419c93b?w=400&h=400&fit=crop&auto=format",
     # Bakery
     "Bread": "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=400&h=400&fit=crop&auto=format",
     "Bagel": "https://images.unsplash.com/photo-1590424288525-5da1df282d0d?w=400&h=400&fit=crop&auto=format",  # Fixed - old one was 404
