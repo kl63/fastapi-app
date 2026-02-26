@@ -78,9 +78,28 @@ PRODUCT_IMAGES = {
 
 def get_product_image_url(product_name: str) -> str:
     """Get correct image URL for a product based on its name"""
-    # Try to match product name to known product types
-    for key in PRODUCT_IMAGES:
-        if key.lower() in product_name.lower():
+    import re
+    
+    product_lower = product_name.lower()
+    
+    # Sort keys by length (longest first) to prioritize more specific matches
+    sorted_keys = sorted(PRODUCT_IMAGES.keys(), key=len, reverse=True)
+    
+    # Try exact match first
+    for key in sorted_keys:
+        if key.lower() == product_lower:
+            return PRODUCT_IMAGES[key]
+    
+    # Try word boundary match (e.g., "Cod" matches "Wild Cod" but not "Broccoli")
+    for key in sorted_keys:
+        # Match as whole word using word boundaries
+        pattern = r'\b' + re.escape(key.lower()) + r'\b'
+        if re.search(pattern, product_lower):
+            return PRODUCT_IMAGES[key]
+    
+    # Try substring match as fallback (prioritize longer matches)
+    for key in sorted_keys:
+        if key.lower() in product_lower:
             return PRODUCT_IMAGES[key]
     
     # If no match, return a generic grocery image

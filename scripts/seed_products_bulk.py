@@ -300,13 +300,27 @@ def generate_product_name(category_name: str, base_name: str, brand: str = None)
 
 def get_product_image(base_name: str) -> str:
     """Get product-specific image URL"""
+    import re
+    
+    base_lower = base_name.lower()
+    
+    # Sort keys by length (longest first) to prioritize more specific matches
+    sorted_keys = sorted(PRODUCT_IMAGES.keys(), key=len, reverse=True)
+    
     # Check for exact match first
     if base_name in PRODUCT_IMAGES:
         return PRODUCT_IMAGES[base_name]
     
-    # Check for partial matches (e.g., "Whole Milk" matches "Milk")
-    for key in PRODUCT_IMAGES:
-        if key in base_name or base_name in key:
+    # Try word boundary match (e.g., "Cod" matches "Wild Cod" but not "Broccoli")
+    for key in sorted_keys:
+        # Match as whole word using word boundaries
+        pattern = r'\b' + re.escape(key.lower()) + r'\b'
+        if re.search(pattern, base_lower):
+            return PRODUCT_IMAGES[key]
+    
+    # Check for partial matches as fallback (prioritize longer matches)
+    for key in sorted_keys:
+        if key.lower() in base_lower or base_lower in key.lower():
             return PRODUCT_IMAGES[key]
     
     # Default to a generic grocery image
