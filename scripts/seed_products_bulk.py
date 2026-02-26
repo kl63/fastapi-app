@@ -215,8 +215,20 @@ PRODUCT_IMAGES = {
     "Pasta": "https://images.unsplash.com/photo-1551462147-37abc7f4ddb8?w=400&h=400&fit=crop&auto=format",
     "Rice": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=400&h=400&fit=crop&auto=format",
     "Cereal": "https://images.unsplash.com/photo-1596797882870-8c33deeac224?w=400&h=400&fit=crop&auto=format",
+    "Oatmeal": "https://images.unsplash.com/photo-1517673132405-a56a62b18caf?w=400&h=400&fit=crop&auto=format",
     "Oil": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=400&h=400&fit=crop&auto=format",
     "Sauce": "https://images.unsplash.com/photo-1472476443507-c7a5948772fc?w=400&h=400&fit=crop&auto=format",
+    "Honey": "https://images.unsplash.com/photo-1587049352846-4a222e784098?w=400&h=400&fit=crop&auto=format",
+    # Snacks
+    "Chips": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400&h=400&fit=crop&auto=format",
+    "Crackers": "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400&h=400&fit=crop&auto=format",
+    "Nuts": "https://images.unsplash.com/photo-1599599810769-bcde5a160d32?w=400&h=400&fit=crop&auto=format",
+    "Chocolate": "https://images.unsplash.com/photo-1511381939415-e44015466834?w=400&h=400&fit=crop&auto=format",
+    "Candy": "https://images.unsplash.com/photo-1582058091505-f87a2e55a40f?w=400&h=400&fit=crop&auto=format",
+    "Popcorn": "https://images.unsplash.com/photo-1578849278619-e73505e9610f?w=400&h=400&fit=crop&auto=format",
+    # Frozen
+    "Pizza": "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=400&h=400&fit=crop&auto=format",
+    "Ice Cream": "https://images.unsplash.com/photo-1563805042-7684c019e1cb?w=400&h=400&fit=crop&auto=format",
 }
 
 # Price ranges by product type (min, max)
