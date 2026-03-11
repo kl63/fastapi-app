@@ -1,45 +1,97 @@
-# FreshCart E-Commerce API
+# FreshCart E-Commerce API 🛒
 
-A comprehensive e-commerce backend API built with FastAPI, PostgreSQL, and modern Python practices. This API provides all the essential features needed for a full-featured online grocery/e-commerce platform.
+A production-ready, full-featured e-commerce backend API built with FastAPI, PostgreSQL, Stripe, and modern Python practices. Designed for online grocery stores and e-commerce platforms, this API provides everything from product management to secure payment processing.
+
+## 🌟 Overview
+
+FreshCart API is a comprehensive backend solution that powers modern e-commerce applications. Built with performance, security, and scalability in mind, it handles everything from user authentication to payment processing, making it perfect for startups and established businesses alike.
+
+**Live Production API**: [https://fastapi.kevinlinportfolio.com](https://fastapi.kevinlinportfolio.com)
+
+## ✨ Key Highlights
+
+- ✅ **80+ RESTful API endpoints** across 10 feature groups
+- ✅ **Stripe payment integration** with webhooks and refunds
+- ✅ **13+ database tables** with comprehensive relationships
+- ✅ **JWT authentication** with role-based access control
+- ✅ **Automated deployment** with GitHub Actions
+- ✅ **Docker containerization** for easy deployment
+- ✅ **Production-ready** with comprehensive error handling
+- ✅ **Bulk data seeding** with realistic test data
 
 ## 🚀 Features
 
 ### Core E-Commerce Features
-- **User Management**: Registration, authentication, profile management
-- **Product Catalog**: Categories, products with detailed information, search & filtering
-- **Shopping Cart**: Add/remove items, quantity management, discount codes
-- **Wishlist**: Save favorite products for later
-- **Order Management**: Complete order processing workflow
-- **Address Management**: Multiple shipping/billing addresses
-- **Reviews & Ratings**: Product reviews and rating system
-- **Notifications**: In-app notification system
-- **Coupon System**: Discount codes and promotions
+- 🛍️ **Product Catalog**: Categories with hierarchy, products with detailed specs, images, and variants
+- 🛒 **Shopping Cart**: Real-time cart management, quantity updates, discount codes
+- 💳 **Payment Processing**: Stripe integration with payment intents, webhooks, and refunds
+- 📦 **Order Management**: Complete order lifecycle with status tracking and history
+- ⭐ **Reviews & Ratings**: Product reviews with aggregated ratings
+- ❤️ **Wishlist**: Save favorite products for later purchase
+- 🏠 **Address Management**: Multiple shipping/billing addresses with defaults
+- 🎫 **Coupon System**: Flexible discount codes with validation
+- 🔔 **Notifications**: In-app notification system for order updates
+
+### User Management
+- 👤 **Authentication**: Secure registration and login with JWT tokens
+- 🔐 **Authorization**: Role-based access control (Admin/User)
+- 📧 **Password Recovery**: Forgot password with email tokens
+- 👥 **User Profiles**: Complete profile management with preferences
+- 🔒 **Security**: Bcrypt password hashing, secure token management
 
 ### Technical Features
-- **JWT Authentication**: Secure token-based authentication
-- **Role-Based Access**: Admin and user permissions
-- **Database Migrations**: Alembic for schema management
-- **API Documentation**: Auto-generated Swagger/OpenAPI docs
-- **Data Validation**: Pydantic schemas for request/response validation
-- **CORS Support**: Cross-origin resource sharing
-- **Error Handling**: Comprehensive error responses
+- 🚀 **FastAPI Framework**: Async support, automatic OpenAPI docs
+- 🐘 **PostgreSQL Database**: Robust relational data storage
+- 🔄 **Database Migrations**: Alembic for version-controlled schema changes
+- 📝 **Data Validation**: Pydantic schemas for type safety
+- 🌐 **CORS Support**: Configurable cross-origin resource sharing
+- 📊 **Error Handling**: Comprehensive HTTP error responses
+- 🐳 **Docker Ready**: Containerized for easy deployment
+- 🔧 **Automated Testing**: Test suite for API validation
 
 ## 🛠️ Tech Stack
 
-- **FastAPI**: Modern, fast web framework for building APIs
-- **PostgreSQL**: Robust relational database
-- **SQLAlchemy**: Python SQL toolkit and ORM
-- **Alembic**: Database migration tool
-- **Pydantic**: Data validation using Python type annotations
-- **JWT**: JSON Web Tokens for authentication
-- **Uvicorn**: ASGI server implementation
-- **Bcrypt**: Password hashing
+### Backend Framework
+- **FastAPI 0.104+**: Modern, fast web framework with async support
+- **Python 3.8+**: Leveraging modern Python features and type hints
+- **Uvicorn**: Lightning-fast ASGI server
+
+### Database
+- **PostgreSQL 12+**: Robust relational database
+- **SQLAlchemy 2.0+**: Python SQL toolkit and ORM
+- **Alembic**: Database migration and version control
+
+### Payment Processing
+- **Stripe API**: Secure payment processing with webhooks
+- **Payment Intents**: PCI-compliant payment handling
+
+### Security & Authentication
+- **JWT (PyJWT)**: JSON Web Tokens for stateless authentication
+- **Bcrypt**: Secure password hashing
+- **OAuth2**: Industry-standard authorization framework
+
+### Data Validation & Serialization
+- **Pydantic v2**: Data validation using Python type annotations
+- **Type Hints**: Comprehensive typing throughout the codebase
+
+### DevOps & Deployment
+- **Docker & Docker Compose**: Containerization
+- **GitHub Actions**: CI/CD automation
+- **Nginx**: Reverse proxy (production)
+- **PM2/Systemd**: Process management (production)
 
 ## 📋 Prerequisites
 
-- Python 3.8+
-- PostgreSQL 12+
-- pip or poetry for package management
+### Development
+- **Python 3.8+** (3.11+ recommended)
+- **PostgreSQL 12+** (14+ recommended)
+- **pip** or **poetry** for package management
+- **Git** for version control
+
+### Optional
+- **Docker & Docker Compose** (for containerized development)
+- **Stripe Account** (for payment processing features)
+- **Node.js** (if integrating with frontend applications)
 
 ## 🚀 Quick Start
 
@@ -60,10 +112,24 @@ cp .env.example .env
 
 Required environment variables:
 ```env
+# Database
 DATABASE_URL=postgresql://username:password@localhost:5432/fastapi_app
+
+# Security
 SECRET_KEY=your-secret-key-here
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+
+# CORS
 CORS_ORIGINS=["http://localhost:3000"]
+
+# Stripe Payment (Optional)
+STRIPE_SECRET_KEY=sk_test_your_test_key
+STRIPE_PUBLISHABLE_KEY=pk_test_your_test_key
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
+
+# API Configuration
+API_V1_STR=/api/v1
+PROJECT_NAME=FreshCart API
 ```
 
 ### 3. Database Setup
@@ -158,6 +224,13 @@ uvicorn main:app --reload
 - `GET /admin/all` - Get all orders (admin only)
 - `PUT /{id}/status` - Update order status (admin only)
 
+### 💳 Payments (`/orders`)
+- `POST /create-payment-intent` - Create Stripe payment intent
+- `POST /create-order-with-payment` - Create order with payment
+- `POST /confirm-payment/{id}` - Confirm payment for order
+- `POST /refund/{id}` - Process refund (admin only)
+- `POST /webhooks/stripe` - Stripe webhook handler
+
 ### ⭐ Reviews (`/reviews`)
 - `GET /product/{id}` - Get product reviews
 - `GET /user` - Get user's reviews
@@ -200,74 +273,190 @@ The application uses a comprehensive database schema with the following main ent
 
 ## 🧪 Testing
 
-Run the comprehensive API test suite:
+### Run Test Suite
+
+All test files are organized in the `/tests` directory:
 
 ```bash
-python test_api.py
+# Run all tests with pytest
+pytest tests/
+
+# Run specific test file
+python tests/test_api.py
+
+# Test authentication
+python tests/test_auth_fix.py
+
+# Test order flow
+python tests/test_complete_order_flow.py
+
+# Test Stripe payments
+python tests/test_stripe_payment.py
+
+# Check database connection
+python tests/db_test.py
 ```
 
-This will test all major endpoints and provide a status report.
+### Validation Scripts
+
+```bash
+# Check products in database
+python tests/check_products.py
+
+# Verify production cart
+python tests/check_production_cart.py
+
+# Check orders
+python tests/check_orders.py
+```
 
 ## 🏗️ Project Structure
 
 ```
 fastapi-app/
-├── app/
+├── app/                          # Main application code
 │   ├── api/
-│   │   ├── endpoints/     # API route handlers
-│   │   │   ├── auth.py
-│   │   │   ├── users.py
-│   │   │   ├── products.py
-│   │   │   ├── cart.py
-│   │   │   └── ...
-│   │   ├── deps.py        # Dependencies
-│   │   └── api.py         # Main API router
+│   │   ├── endpoints/           # API route handlers
+│   │   │   ├── auth.py         # Authentication endpoints
+│   │   │   ├── users.py        # User management
+│   │   │   ├── products.py     # Product catalog
+│   │   │   ├── cart.py         # Shopping cart
+│   │   │   ├── orders.py       # Order processing & payments
+│   │   │   └── ...             # Other endpoints
+│   │   ├── deps.py             # Dependencies & auth
+│   │   └── api.py              # Main API router
 │   ├── core/
-│   │   ├── config.py      # Configuration
-│   │   └── security.py    # Security utilities
-│   ├── crud/              # Database operations
-│   │   ├── user.py
-│   │   ├── product.py
-│   │   └── ...
-│   ├── db/
-│   │   ├── base.py        # Database base
-│   │   └── session.py     # Database session
-│   ├── models/            # SQLAlchemy models
-│   │   ├── user.py
-│   │   ├── product.py
-│   │   └── ...
-│   └── schemas/           # Pydantic schemas
-│       ├── user.py
-│       ├── product.py
-│       └── ...
-├── alembic/               # Database migrations
-├── scripts/
-│   ├── deploy.py         # Deployment script
-│   └── start.sh          # Startup script
-├── main.py               # FastAPI application
-├── test_api.py          # API test suite
-└── requirements.txt      # Dependencies
+│   │   ├── config.py           # Configuration settings
+│   │   └── security.py         # Security utilities
+│   ├── crud/                    # Database operations
+│   ├── db/                      # Database session management
+│   ├── models/                  # SQLAlchemy ORM models
+│   ├── schemas/                 # Pydantic validation schemas
+│   └── services/                # Business logic (Stripe, etc.)
+│
+├── docs/                         # 📚 Documentation
+│   ├── README.md                # Documentation index
+│   ├── API_DOCEMENTATION.md     # Complete API reference
+│   ├── DOCKER_DEPLOYMENT.md     # Docker guide
+│   ├── STRIPE_SETUP_GUIDE.md    # Payment setup
+│   ├── FRONTEND_INTEGRATION_GUIDE.md
+│   └── ...                      # Other guides
+│
+├── scripts/                      # 🛠️ Utility scripts
+│   ├── seed_products_bulk.py    # Bulk product seeding
+│   ├── seed_production.py       # Production data seeding
+│   ├── deploy.py                # Deployment automation
+│   ├── start.sh                 # Application startup
+│   └── utils/                   # Database & setup utilities
+│       ├── create_admin.py      # Create admin user
+│       ├── create_db.py         # Database creation
+│       ├── fix_*.py             # Database fixes
+│       └── setup_*.sh           # Setup scripts
+│
+├── tests/                        # 🧪 Test suite
+│   ├── test_api.py              # API endpoint tests
+│   ├── test_auth_fix.py         # Authentication tests
+│   ├── test_stripe_payment.py   # Payment tests
+│   ├── test_complete_order_flow.py
+│   ├── check_*.py               # Validation scripts
+│   └── ...                      # Other tests
+│
+├── alembic/                      # Database migrations
+│   ├── versions/                # Migration files
+│   └── env.py                   # Alembic config
+│
+├── .github/                      # GitHub Actions CI/CD
+│   └── workflows/
+│       └── deploy-fastapi.yml   # Deployment workflow
+│
+├── main.py                       # FastAPI application entry
+├── requirements.txt              # Python dependencies
+├── docker-compose.yml            # Docker Compose config
+├── Dockerfile                    # Docker image definition
+├── alembic.ini                   # Alembic configuration
+├── pytest.ini                    # Pytest configuration
+├── PROJECT_STRUCTURE.md          # Detailed structure guide
+└── README.md                     # This file
 ```
+
+> 📖 For detailed structure information, see [PROJECT_STRUCTURE.md](./PROJECT_STRUCTURE.md)
 
 ## 🚀 Deployment
 
-### Automated Deployment
-
-The project includes GitHub Actions workflow for automated deployment:
+### 🐳 Docker Deployment (Recommended)
 
 ```bash
-# Triggers on push to main branch
-# Automatically runs migrations and restarts the application
+# Build and run with Docker Compose
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop containers
+docker-compose down
 ```
 
-### Manual Deployment
+### 🤖 Automated Deployment (GitHub Actions)
+
+The project includes a complete CI/CD pipeline:
+
+```yaml
+# .github/workflows/deploy-fastapi.yml
+# Triggers on push to main branch
+# - Builds Docker image
+# - Runs database migrations
+# - Deploys to production
+# - Restarts application
+```
+
+### 🔧 Manual Production Deployment
 
 ```bash
-# Run deployment script
+# 1. Pull latest code
+git pull origin main
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Run deployment script (handles DB migrations)
 python scripts/deploy.py
 
-# Start application with PM2 or systemd
+# 4. Start application
 ./scripts/start.sh
+```
+
+### 🌐 Production Setup
+
+**Live API**: [https://fastapi.kevinlinportfolio.com](https://fastapi.kevinlinportfolio.com)
+
+Production environment uses:
+- **Nginx** as reverse proxy
+- **PostgreSQL** on dedicated server
+- **PM2** for process management
+- **Let's Encrypt** for SSL certificates
+- **GitHub Actions** for automated deployments
+
+### 🔑 Environment Setup
+
+```bash
+# Copy production environment template
+cp .env.example .env.production
+
+# Configure production variables
+nano .env.production
+```
+
+### 📊 Health Monitoring
+
+```bash
+# Check API health
+curl https://fastapi.kevinlinportfolio.com/health
+
+# View application logs
+pm2 logs fastapi-app
+
+# Check database connection
+python tests/db_test.py
 ```
 
 ## 🔧 Development
@@ -290,35 +479,105 @@ python scripts/deploy.py
 - Add proper error handling
 - Include input validation
 
-## 📖 API Documentation
+## � Seeding Data
 
-The API is fully documented with OpenAPI/Swagger:
+### Bulk Product Seeding
 
-- **Interactive Documentation**: http://localhost:8000/docs
-- **Alternative Documentation**: http://localhost:8000/redoc
-- **OpenAPI Schema**: http://localhost:8000/openapi.json
+Populate your database with realistic test data:
 
-## 🤝 Contributing
+```bash
+# Seed products in bulk (local)
+python scripts/seed_products_bulk.py
+# Enter number of products: 100
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+# Seed production database
+python scripts/seed_production.py
+```
+
+Features:
+- ✅ 50+ product images from Unsplash
+- ✅ Realistic product names and descriptions
+- ✅ Category-based pricing
+- ✅ Stock quantities and variations
+- ✅ Organic and featured product flags
+
+### Create Admin User
+
+```bash
+# Create admin account
+python scripts/utils/create_admin.py
+```
+
+### Clear Database
+
+```bash
+# Clear all products
+python scripts/clear_all_products.py
+
+# Clean bulk products
+python scripts/clean_bulk_products.py
+```
+
+## � Documentation
+
+### API Documentation
+
+The API is fully documented with interactive Swagger UI:
+
+- **📱 Interactive Docs (Swagger)**: http://localhost:8000/docs
+- **📘 Alternative Docs (ReDoc)**: http://localhost:8000/redoc
+- **📄 OpenAPI Schema**: http://localhost:8000/openapi.json
+- **🏥 Health Check**: http://localhost:8000/health
+
+### Project Documentation
+
+Comprehensive guides in the [`/docs`](./docs) folder:
+
+- **[API Documentation](./docs/API_DOCEMENTATION.md)** - Complete endpoint reference
+- **[Docker Deployment Guide](./docs/DOCKER_DEPLOYMENT.md)** - Containerization setup
+- **[Stripe Setup Guide](./docs/STRIPE_SETUP_GUIDE.md)** - Payment integration
+- **[Frontend Integration](./docs/FRONTEND_INTEGRATION_GUIDE.md)** - Connect your frontend
+- **[Project Structure](./PROJECT_STRUCTURE.md)** - Detailed file organization
 
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 🆘 Support
+## 🔗 Production URLs
 
-For support and questions:
+- **API Base**: https://fastapi.kevinlinportfolio.com/api/v1
+- **Interactive Docs**: https://fastapi.kevinlinportfolio.com/docs
+- **Health Check**: https://fastapi.kevinlinportfolio.com/health
 
-1. Check the [API Documentation](http://localhost:8000/docs)
-2. Review the test suite in `test_api.py`
-3. Check existing issues in the repository
-4. Create a new issue if needed
+## 📈 Performance & Scalability
+
+- ⚡ **Async/Await**: Leveraging FastAPI's async capabilities
+- 🔄 **Database Connection Pooling**: Efficient resource management
+- 📦 **Pagination**: All list endpoints support pagination
+- 🎯 **Indexed Queries**: Optimized database queries
+- 🚀 **Production Ready**: Battle-tested in live environment
+
+## 🛡️ Security Features
+
+- 🔐 **JWT Tokens**: Secure, stateless authentication
+- 🔒 **Password Hashing**: Bcrypt with salt
+- 🛑 **CORS Protection**: Configurable origins
+- ✅ **Input Validation**: Pydantic schemas on all endpoints
+- 🔑 **API Key Support**: For service-to-service communication
+- 🎫 **Role-Based Access**: Admin/User permissions
+
+##  Roadmap
+
+- [ ] GraphQL API support
+- [ ] Real-time inventory updates (WebSockets)
+- [ ] Advanced product recommendations
+- [ ] Multi-language support (i18n)
+- [ ] Image upload and management
+- [ ] Email notification system
+- [ ] Analytics and reporting dashboard
 
 ---
 
-**Built with ❤️ using FastAPI and modern Python practices**
+**Built with ❤️ using FastAPI, PostgreSQL, Stripe, and modern Python practices**
+
+*Production-ready e-commerce API powering online businesses* 🚀
